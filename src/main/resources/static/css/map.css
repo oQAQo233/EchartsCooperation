@@ -1,0 +1,39 @@
+/* ========== 地图页面样式 ========== */
+.map-page {
+    padding-top: 70px;
+}
+
+.map-container {
+    background: var(--white);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+    height: calc(100vh - 280px);
+    min-height: 500px;
+}
+
+#worldMapContainer {
+    width: 100%;
+    height: 100%;
+}
+
+.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 300px;
+    color: var(--gray);
+}
+
+.map-note {
+    background: rgba(99, 102, 241, 0.1);
+    border-radius: var(--radius-sm);
+    padding: 1rem;
+    margin-top: 1rem;
+    color: var(--primary-dark);
+    font-size: 0.875rem;
+}
+
+.map-note i {
+    margin-right: 0.5rem;
+}

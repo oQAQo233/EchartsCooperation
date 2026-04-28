@@ -329,3 +329,18 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+/* ========== 记录详情页 ========== */
+.detail-label {
+    display: block;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-bottom: 0.125rem;
+}
+
+.detail-value {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #1e293b;
+}

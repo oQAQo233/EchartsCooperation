@@ -8,8 +8,11 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import javax.servlet.http.HttpServletRequest;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -39,8 +42,33 @@ public class SleepHealthController {
 
     @GetMapping("/api/records")
     @ResponseBody
-    public List<SleepHealthRecord> getAllRecords() {
-        return sleepHealthService.getAllRecords();
+    public Map<String, Object> getRecordsPaginated(
+            @RequestParam("draw") int draw,
+            @RequestParam("start") int start,
+            @RequestParam("length") int length,
+            @RequestParam(value = "search[value]", required = false) String search,
+            HttpServletRequest request) {
+
+        String orderColumnStr = request.getParameter("order[0][column]");
+        String orderDir = request.getParameter("order[0][dir]");
+        Integer orderColumn = null;
+        if (orderColumnStr != null && !orderColumnStr.trim().isEmpty()) {
+            try {
+                orderColumn = Integer.parseInt(orderColumnStr);
+            } catch (NumberFormatException e) {
+                orderColumn = null;
+            }
+        }
+
+        Map<String, Object> serviceResult = sleepHealthService.searchRecordsPaginated(
+            start, length, search, orderColumn, orderDir);
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("draw", draw);
+        response.put("recordsTotal", serviceResult.get("recordsTotal"));
+        response.put("recordsFiltered", serviceResult.get("recordsFiltered"));
+        response.put("data", serviceResult.get("data"));
+        return response;
     }
 
     @GetMapping("/api/records/{personId}")

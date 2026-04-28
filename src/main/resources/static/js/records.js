@@ -1,50 +1,85 @@
-// ========== 记录列表页面 ==========
-let recordsTable;
+// ========== 记录列表页面 - DataTables 服务端模式 ==========
 
 $(document).ready(function() {
-    loadRecords();
-});
-
-function loadRecords() {
-    $.ajax({
-        url: '/sleep/api/records',
-        method: 'GET',
-        success: function(data) {
-            renderTable(data);
+    $('#recordsTable').DataTable({
+        processing: true,
+        serverSide: true,
+        paging: true,
+        searching: true,
+        ordering: true,
+        lengthMenu: [10, 25, 50, 100],
+        pageLength: 10,
+        language: {
+            lengthMenu: "每页 _MENU_ 条记录",
+            zeroRecords: "没有找到记录",
+            info: "第 _PAGE_ 页 (共 _PAGES_ 页)",
+            infoEmpty: "无记录",
+            search: "搜索:",
+            paginate: {
+                first: "首页",
+                last: "末页",
+                next: "下一页",
+                previous: "上一页"
+            },
+            processing: "加载中..."
         },
-        error: function() {
-            $('#recordsBody').html('<tr><td colspan="10" class="text-center text-muted">数据加载失败</td></tr>');
-        }
+        ajax: {
+            url: '/sleep/api/records',
+            type: 'GET',
+            data: function(d) {
+                if (d.order && d.order.length > 0) {
+                    d['order[0][column]'] = d.order[0].column;
+                    d['order[0][dir]'] = d.order[0].dir;
+                }
+            },
+            dataSrc: function(json) {
+                return json.data;
+            }
+        },
+        columns: [
+            { data: 'personId' },
+            { data: 'age' },
+            { data: 'gender' },
+            { data: 'occupation' },
+            { data: 'sleepDurationHrs' },
+            { data: 'sleepQualityScore' },
+            { data: 'stressScore' },
+            { data: 'chronotype' },
+            { data: 'sleepDisorderRisk' },
+            { data: 'country' }
+        ],
+        columnDefs: [
+            {
+                render: function(data, type, row) {
+                    if (row.sleepDisorderRisk) {
+                        var riskClass = getRiskClass(row.sleepDisorderRisk);
+                        return '<span class="badge-risk ' + riskClass + '">' + row.sleepDisorderRisk + '</span>';
+                    }
+                    return '-';
+                },
+                targets: 8
+            },
+            {
+                render: function(data, type, row) {
+                    if (data) {
+                        return data.toFixed(1) + ' 小时';
+                    }
+                    return '-';
+                },
+                targets: 4
+            },
+            {
+                render: function(data, type, row) {
+                    if (data) {
+                        return data.toFixed(1) + ' 分';
+                    }
+                    return '-';
+                },
+                targets: 5
+            }
+        ]
     });
-}
-
-function renderTable(records) {
-    let html = '';
-    for (let i = 0; i < records.length; i++) {
-        const r = records[i];
-        const riskClass = getRiskClass(r.sleepDisorderRisk);
-        const riskLabel = r.sleepDisorderRisk || '未知';
-
-        html += '<tr>';
-        html += '<td>' + (r.personId || '-') + '</td>';
-        html += '<td>' + (r.age || '-') + '</td>';
-        html += '<td>' + (r.gender || '-') + '</td>';
-        html += '<td>' + (r.occupation || '-') + '</td>';
-        html += '<td>' + (r.sleepDurationHrs ? r.sleepDurationHrs.toFixed(1) : '-') + ' 小时</td>';
-        html += '<td>' + (r.sleepQualityScore ? r.sleepQualityScore.toFixed(1) : '-') + ' 分</td>';
-        html += '<td>' + (r.stressScore ? r.stressScore.toFixed(1) : '-') + '</td>';
-        html += '<td>' + (r.chronotype || '-') + '</td>';
-        html += '<td><span class="badge-risk ' + riskClass + '">' + riskLabel + '</span></td>';
-        html += '<td>' + (r.country || '-') + '</td>';
-        html += '</tr>';
-    }
-
-    if (records.length === 0) {
-        html = '<tr><td colspan="10" class="text-center text-muted">暂无数据</td></tr>';
-    }
-
-    $('#recordsBody').html(html);
-}
+});
 
 function getRiskClass(risk) {
     if (!risk) return '';

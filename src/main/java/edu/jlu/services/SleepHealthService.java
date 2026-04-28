@@ -8,6 +8,8 @@ import org.springframework.stereotype.Service;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -39,6 +41,55 @@ public class SleepHealthService {
             Integer.class
         );
         return count != null ? count : 0;
+    }
+
+    public Map<String, Object> searchRecordsPaginated(
+            int start, int length, String search,
+            Integer orderColumn, String orderDir) {
+
+        Map<String, Object> result = new HashMap<>();
+
+        String[] ALLOWED_COLUMNS = {
+            "person_id", "age", "gender", "occupation",
+            "sleep_duration_hrs", "sleep_quality_score", "stress_score",
+            "chronotype", "sleep_disorder_risk", "country"
+        };
+
+        String searchClause = "";
+        List<Object> searchParams = new ArrayList<>();
+        if (search != null && !search.trim().isEmpty()) {
+            searchClause = "AND (" +
+                "person_id LIKE ? OR age LIKE ? OR gender LIKE ? OR occupation LIKE ? OR " +
+                "sleep_duration_hrs LIKE ? OR sleep_quality_score LIKE ? OR stress_score LIKE ? OR " +
+                "chronotype LIKE ? OR sleep_disorder_risk LIKE ? OR country LIKE ?)";
+            for (int i = 0; i < 10; i++) {
+                searchParams.add("%" + search.trim() + "%");
+            }
+        }
+
+        String orderClause = "ORDER BY person_id ASC";
+        if (orderColumn != null && orderColumn >= 0 && orderColumn < ALLOWED_COLUMNS.length && orderDir != null && !orderDir.trim().isEmpty()) {
+            String dir = "desc".equalsIgnoreCase(orderDir) ? "DESC" : "ASC";
+            orderClause = "ORDER BY " + ALLOWED_COLUMNS[orderColumn] + " " + dir;
+        }
+
+        String dataSql = "SELECT * FROM sleep_health_dataset WHERE 1=1 "
+                       + searchClause + " " + orderClause + " LIMIT ? OFFSET ?";
+        List<Object> dataParams = new ArrayList<>(searchParams);
+        dataParams.add(length);
+        dataParams.add(start);
+        List<SleepHealthRecord> records = jdbcTemplate.query(dataSql,
+            new SleepHealthRecordRowMapper(), dataParams.toArray());
+
+        String countSql = "SELECT COUNT(*) FROM sleep_health_dataset WHERE 1=1 " + searchClause;
+        Integer filteredCount = jdbcTemplate.queryForObject(countSql, Integer.class,
+            searchParams.toArray());
+
+        result.put("data", records);
+        result.put("recordsFiltered", filteredCount != null ? filteredCount : 0);
+        result.put("recordsTotal", getRecordCount());
+
+        return result;
     }
 
     public double getAverageSleepDuration() {

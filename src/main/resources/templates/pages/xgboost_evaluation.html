@@ -124,9 +124,9 @@
 <script th:src="@{/js/jquery-3.4.1.min.js}"></script>
 <script>
     $(function() {
-        // 初始化图表
         var fiChart = echarts.init(document.getElementById('fi-chart'));
         var shapImpChart = echarts.init(document.getElementById('shap-importance-chart'));
+        // 注意：shapDepChart 只初始化一次，不再 dispose
         var shapDepChart = echarts.init(document.getElementById('shap-dep-box'));
 
         var currentModel = '';
@@ -141,7 +141,6 @@
         }
         var initModel = getUrlParam('model');
 
-        // 加载模型列表
         function loadModelList(callback) {
             $.get('/sleep/api/models', function(models) {
                 var $select = $('#model-select').empty();
@@ -170,7 +169,6 @@
             return await resp.json();
         }
 
-        // 特征重要性图表
         function renderFeatureImportance(data, typeLabel) {
             var features = data.map(d => d.feature_name || d.feature);
             var values = data.map(d => d.importance);
@@ -189,7 +187,6 @@
             }, true);
         }
 
-        // SHAP 重要性图表
         function renderShapImportance(data, selectedClass) {
             currentSelectedClass = selectedClass;
             let filtered = data;
@@ -247,21 +244,17 @@
             });
         }
 
-        // 依赖图：完全替换模式，避免残留
+        // 依赖图：复用实例并添加动画
         function renderShapDependence(data, featureName, selectedClass) {
-            if (shapDepChart) {
-                shapDepChart.dispose();
-            }
-            shapDepChart = echarts.init(document.getElementById('shap-dep-box'));
-
             let filtered = data.filter(d => d.feature === featureName);
             if (selectedClass !== -1) {
                 filtered = filtered.filter(d => d.class == selectedClass);
             }
             if (filtered.length === 0) {
+                shapDepChart.clear();
                 shapDepChart.setOption({
                     title: { text: 'SHAP 依赖图：' + featureName + '（无数据）', left: 'center' }
-                });
+                }, true);
                 return;
             }
 
@@ -280,9 +273,10 @@
             });
 
             if (scatterData.length === 0) {
+                shapDepChart.clear();
                 shapDepChart.setOption({
                     title: { text: 'SHAP 依赖图：' + featureName + '（数值无效）', left: 'center' }
-                });
+                }, true);
                 return;
             }
 
@@ -312,7 +306,11 @@
                 }
             }
 
-            shapDepChart.setOption({
+            // 动画配置
+            var option = {
+                animation: true,
+                animationDuration: 500,
+                animationEasing: 'cubicOut',
                 title: { text: 'SHAP 依赖图：' + featureDisplayName, left: 'center' },
                 tooltip: {
                     trigger: 'item',
@@ -338,12 +336,14 @@
                 series: [{
                     type: 'scatter',
                     data: scatterData,
-                    symbolSize: 8
+                    symbolSize: 8,
+                    animation: true
                 }]
-            }, true);
+            };
+
+            shapDepChart.setOption(option, true);
         }
 
-        // 分类下拉框
         function updateClassOptions(data) {
             var classMap = new Map();
             data.forEach(d => {
@@ -392,14 +392,12 @@
             renderShapImportance(rawShapData, classFilter);
         }
 
-        // 事件绑定：所有下拉框立即生效
         $('#model-select').change(function() {
             currentModel = '';
             refresh();
         });
 
         $('#imp-type').change(function() {
-            // 重要性类型改变不需要重置 currentModel，但需要重新请求特征重要性
             refresh();
         });
 
@@ -415,7 +413,6 @@
             if (shapDepChart) shapDepChart.resize();
         });
 
-        // 启动
         loadModelList(function() {
             refresh();
         });

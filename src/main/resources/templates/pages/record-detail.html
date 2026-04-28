@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>记录详情 - 睡眠健康分析平台</title>
+
+    <link th:href="@{/webjars/bootstrap/5.3.2/css/bootstrap.min.css}" rel="stylesheet">
+    <link th:href="@{/css/custom.css}" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+</head>
+<body>
+
+    <!-- 侧边栏 -->
+    <div class="sidebar">
+        <ul class="sidebar-menu">
+            <li>
+                <a href="/sleep/dashboard">
+                    <i class="bi bi-grid-1x2 icon"></i>
+                    数据仪表盘
+                </a>
+            </li>
+            <li>
+                <a href="/sleep/records">
+                    <i class="bi bi-table icon"></i>
+                    数据记录表
+                </a>
+            </li>
+            <li>
+                <a href="/sleep/distribution">
+                    <i class="bi bi-pie-chart icon"></i>
+                    睡眠质量分布
+                </a>
+            </li>
+            <li>
+                <a href="/sleep/map">
+                    <i class="bi bi-globe-americas icon"></i>
+                    全球分布图
+                </a>
+            </li>
+            <li>
+                <a href="/sleep/xgboost">
+                    <i class="bi bi-cpu icon"></i>
+                    模型预测
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <!-- 导航栏 -->
+    <nav class="navbar">
+        <a class="navbar-brand" href="#">
+            <i class="bi bi-moon-stars"></i>
+            睡眠健康分析平台
+        </a>
+        <span class="navbar-text">
+            <i class="bi bi-person-circle"></i> 欢迎使用数据分析系统
+        </span>
+    </nav>
+
+    <!-- 主内容区 -->
+    <div class="main-content">
+        <div class="page-header d-flex align-items-center justify-content-between">
+            <div>
+                <h1 class="page-title">记录详情</h1>
+                <p class="page-subtitle mb-0">ID：<span th:text="${record.personId}"></span></p>
+            </div>
+            <a href="/sleep/records" class="btn btn-secondary">
+                <i class="bi bi-arrow-left"></i> 返回
+            </a>
+        </div>
+
+        <div class="row">
+            <!-- 基本信息 -->
+            <div class="col-md-6 mb-4">
+                <div class="chart-card h-100">
+                    <h3 class="chart-title"><i class="bi bi-person"></i> 基本信息</h3>
+                    <div class="row">
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">ID</span>
+                            <span class="detail-value" th:text="${record.personId}">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">年龄</span>
+                            <span class="detail-value" th:text="${record.age}">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">性别</span>
+                            <span class="detail-value" th:text="${record.gender}">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">职业</span>
+                            <span class="detail-value" th:text="${record.occupation}">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">BMI</span>
+                            <span class="detail-value" th:text="${record.bmi}">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">国家</span>
+                            <span class="detail-value" th:text="${record.country}">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 睡眠数据 -->
+            <div class="col-md-6 mb-4">
+                <div class="chart-card h-100">
+                    <h3 class="chart-title"><i class="bi bi-moon"></i> 睡眠数据</h3>
+                    <div class="row">
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">睡眠时长</span>
+                            <span class="detail-value" th:text="${record.sleepDurationHrs} + ' 小时'">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">睡眠质量评分</span>
+                            <span class="detail-value" th:text="${record.sleepQualityScore}">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">REM睡眠占比</span>
+                            <span class="detail-value" th:text="${record.remPercentage} + '%'">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">深度睡眠占比</span>
+                            <span class="detail-value" th:text="${record.deepSleepPercentage} + '%'">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">入睡潜伏期</span>
+                            <span class="detail-value" th:text="${record.sleepLatencyMins} + ' 分钟'">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">夜间觉醒次数</span>
+                            <span class="detail-value" th:text="${record.wakeEpisodesPerNight} + ' 次'">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">认知表现评分</span>
+                            <span class="detail-value" th:text="${record.cognitivePerformanceScore}">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">睡眠障碍风险</span>
+                            <span class="detail-value" th:text="${record.sleepDisorderRisk}">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">晨起感觉</span>
+                            <span class="detail-value" th:text="${record.feltRested} == 1 ? '是' : '否'">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">作息类型</span>
+                            <span class="detail-value" th:text="${record.chronotype}">-</span>
+                        </div>
+                        <div class="col-12 mb-2">
+                            <span class="detail-label">心理健康状态</span>
+                            <span class="detail-value" th:text="${record.mentalHealthCondition}">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 生活习惯 -->
+            <div class="col-md-6 mb-4">
+                <div class="chart-card h-100">
+                    <h3 class="chart-title"><i class="bi bi-cup-hot"></i> 生活习惯</h3>
+                    <div class="row">
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">睡前咖啡因摄入</span>
+                            <span class="detail-value" th:text="${record.caffeineMgBeforeBed} + ' mg'">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">睡前饮酒量</span>
+                            <span class="detail-value" th:text="${record.alcoholUnitsBeforeBed} + ' 单位'">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">睡前屏幕时间</span>
+                            <span class="detail-value" th:text="${record.screenTimeBeforeBedMins} + ' 分钟'">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">当日是否运动</span>
+                            <span class="detail-value" th:text="${record.exerciseDay} == 1 ? '是' : '否'">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">当日步数</span>
+                            <span class="detail-value" th:text="${record.stepsThatDay}">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">午睡时长</span>
+                            <span class="detail-value" th:text="${record.napDurationMins} + ' 分钟'">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">压力评分</span>
+                            <span class="detail-value" th:text="${record.stressScore}">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">当日工作时长</span>
+                            <span class="detail-value" th:text="${record.workHoursThatDay} + ' 小时'">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">是否使用助眠药物</span>
+                            <span class="detail-value" th:text="${record.sleepAidUsed} == 1 ? '是' : '否'">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">是否轮班工作</span>
+                            <span class="detail-value" th:text="${record.shiftWork} == 1 ? '是' : '否'">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 环境因素 -->
+            <div class="col-md-6 mb-4">
+                <div class="chart-card h-100">
+                    <h3 class="chart-title"><i class="bi bi-thermometer"></i> 环境因素</h3>
+                    <div class="row">
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">季节</span>
+                            <span class="detail-value" th:text="${record.season}">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">日期类型</span>
+                            <span class="detail-value" th:text="${record.dayType}">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">静息心率</span>
+                            <span class="detail-value" th:text="${record.heartRateRestingBpm} + ' bpm'">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">卧室温度</span>
+                            <span class="detail-value" th:text="${record.roomTemperatureCelsius} + ' °C'">-</span>
+                        </div>
+                        <div class="col-6 mb-2">
+                            <span class="detail-label">周末睡眠差异</span>
+                            <span class="detail-value" th:text="${record.weekendSleepDiffHrs} + ' 小时'">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/webjars/bootstrap/5.3.2/js/bootstrap.bundle.min.js}"></script>
+    <script th:src="@{/js/jquery-3.4.1.min.js}"></script>
+</body>
+</html>

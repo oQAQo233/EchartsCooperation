@@ -1,7 +1,4 @@
 /* ========== 地图页面样式 ========== */
-.map-page {
-    padding-top: 70px;
-}
 
 .map-container {
     background: var(--white);

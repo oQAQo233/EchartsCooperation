@@ -1,7 +1,7 @@
 // ========== 记录列表页面 - DataTables 服务端模式 ==========
 
 $(document).ready(function() {
-    $('#recordsTable').DataTable({
+    var table = $('#recordsTable').DataTable({
         processing: true,
         serverSide: true,
         paging: true,
@@ -77,7 +77,16 @@ $(document).ready(function() {
                 },
                 targets: 5
             }
-        ]
+        ],
+        createdRow: function(row, data) {
+            $(row).attr('data-person-id', data.personId);
+            $(row).css('cursor', 'pointer');
+        }
+    });
+
+    $('#recordsTable tbody').on('click', 'tr', function() {
+        var personId = $(this).data('personId');
+        window.location.href = '/sleep/record/' + personId;
     });
 });
 

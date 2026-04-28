@@ -168,13 +168,16 @@ public class XgboostEvaluateService {
 
             // 处理 class 字段
             if (record.containsKey("class") && classLabels != null) {
+                Object classObj = record.get("class");
                 try {
-                    int classId = Integer.parseInt(record.get("class").toString());
+                    int classId = classObj instanceof Number ? ((Number)classObj).intValue() : Integer.parseInt(classObj.toString());
                     if (classId >= 0 && classId < classLabels.size()) {
                         record.put("class_label", classLabels.get(classId));
                     }
-                } catch (NumberFormatException e) {
-                    log.warn("class 字段无法转换为整数: {}", record.get("class"));
+                    // 强制将 class 写为整数，避免后续前端比较出错
+                    record.put("class", classId);
+                } catch (Exception e) {
+                    log.warn("class 字段无法转换为整数: {}", classObj);
                 }
             }
         }

@@ -87,11 +87,6 @@
                         <option value="-1">全部类别</option>
                     </select>
                 </div>
-                <div class="col-md-auto">
-                    <button id="refresh-btn" class="btn btn-primary">
-                        <i class="bi bi-arrow-repeat"></i> 刷新
-                    </button>
-                </div>
                 <div class="col-md-auto ms-auto">
                     <a href="/sleep/xgboost" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left"></i> 返回预测页
@@ -136,7 +131,9 @@
 
         var currentModel = '';
         var rawShapData = [];
-        var featureList = [];
+        var currentSortedFeatures = [];
+        var currentDisplayNames = [];
+        var currentSelectedClass = -1;
 
         function getUrlParam(name) {
             var match = window.location.search.match(new RegExp('[?&]' + name + '=([^&]*)'));
@@ -144,7 +141,7 @@
         }
         var initModel = getUrlParam('model');
 
-        // 加载可用模型列表
+        // 加载模型列表
         function loadModelList(callback) {
             $.get('/sleep/api/models', function(models) {
                 var $select = $('#model-select').empty();
@@ -158,14 +155,12 @@
             });
         }
 
-        // 获取特征重要性
         async function fetchFeatureImportance(model, type) {
             const resp = await fetch('/api/eval/importance?model=' + encodeURIComponent(model) + '&type=' + type);
             if (!resp.ok) throw new Error('请求失败');
             return await resp.json();
         }
 
-        // 获取SHAP数据
         async function fetchShapData(model) {
             const resp = await fetch('/api/eval/shap?model=' + encodeURIComponent(model));
             if (!resp.ok) {
@@ -175,7 +170,7 @@
             return await resp.json();
         }
 
-        // 绘制特征重要性
+        // 特征重要性图表
         function renderFeatureImportance(data, typeLabel) {
             var features = data.map(d => d.feature_name || d.feature);
             var values = data.map(d => d.importance);
@@ -191,11 +186,12 @@
                     itemStyle: { color: '#1890ff' },
                     label: { show: true, position: 'right', fontSize: 10 }
                 }]
-            });
+            }, true);
         }
 
-        // 绘制SHAP全局重要性（修复点击映射错误）
+        // SHAP 重要性图表
         function renderShapImportance(data, selectedClass) {
+            currentSelectedClass = selectedClass;
             let filtered = data;
             if (selectedClass !== -1) {
                 filtered = data.filter(d => d.class == selectedClass);
@@ -207,19 +203,14 @@
             });
             var features = Object.keys(agg);
             var meanShap = features.map(f => agg[f].reduce((a,b) => a+b, 0) / agg[f].length);
-            // 按重要性降序排序
             var sortedIdx = meanShap.map((v,i) => i).sort((a,b) => meanShap[b] - meanShap[a]);
-            var sortedFeatures = sortedIdx.map(i => features[i]); // 原始 key 列表（降序）
+            currentSortedFeatures = sortedIdx.map(i => features[i]);
             var sortedValues = sortedIdx.map(i => meanShap[i]);
-
-            // 生成对应的显示名称（保持与 sortedFeatures 相同的顺序）
-            var displayNames = sortedFeatures.map(f => {
+            currentDisplayNames = currentSortedFeatures.map(f => {
                 var found = data.find(d => d.feature === f);
                 return found ? (found.feature_name || f) : f;
             });
-            featureList = sortedFeatures; // 保留，但未实际使用
 
-            // 渲染图表（使用副本反转，避免修改原数组）
             shapImpChart.setOption({
                 title: { text: 'SHAP 特征重要性 (平均|SHAP|)', left: 'center' },
                 tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
@@ -227,95 +218,70 @@
                 xAxis: { type: 'value', name: '平均 |SHAP|' },
                 yAxis: {
                     type: 'category',
-                    data: displayNames.slice().reverse(),   // 副本反转，不改变原数组
+                    data: currentDisplayNames.slice().reverse(),
                     inverse: true
                 },
                 series: [{
                     type: 'bar',
-                    data: sortedValues.slice().reverse(),   // 数值同样需要对应反转
+                    data: sortedValues.slice().reverse(),
                     itemStyle: { color: '#52c41a' },
                     label: { show: true, position: 'right', fontSize: 10 }
                 }]
-            });
+            }, true);
 
-            // 默认显示第一个特征（最重要的）的依赖图
-            if (sortedFeatures.length > 0) {
-                renderShapDependence(data, sortedFeatures[0], selectedClass);
+            if (currentSortedFeatures.length > 0) {
+                renderShapDependence(data, currentSortedFeatures[0], selectedClass);
             } else {
                 shapDepChart.clear();
-                shapDepChart.setOption({ title: { text: '无 SHAP 数据', left: 'center' } });
+                shapDepChart.setOption({ title: { text: '无 SHAP 数据', left: 'center' } }, true);
             }
 
-            // 修复点击事件：通过显示名称在原数组中找到索引，再用索引获取真实 key
             shapImpChart.off('click');
             shapImpChart.on('click', function(params) {
                 if (params.name) {
-                    var idx = displayNames.indexOf(params.name);   // 在未反转的数组中查找
-                    if (idx !== -1 && idx < sortedFeatures.length) {
-                        var realFeature = sortedFeatures[idx];
-                        renderShapDependence(data, realFeature, selectedClass);
+                    var idx = currentDisplayNames.indexOf(params.name);
+                    if (idx !== -1 && idx < currentSortedFeatures.length) {
+                        renderShapDependence(data, currentSortedFeatures[idx], selectedClass);
                     }
                 }
             });
         }
 
-        // 绘制SHAP依赖图（增加调试日志与详细提示）
-        // 绘制SHAP依赖图（修复 NaN 问题并增加调试）
+        // 依赖图：完全替换模式，避免残留
         function renderShapDependence(data, featureName, selectedClass) {
-            console.log('=== 绘制依赖图 ===');
-            console.log('请求特征 key:', featureName);
-            console.log('当前类别过滤:', selectedClass);
-            console.log('原始 SHAP 数据总量:', data.length);
+            if (shapDepChart) {
+                shapDepChart.dispose();
+            }
+            shapDepChart = echarts.init(document.getElementById('shap-dep-box'));
 
             let filtered = data.filter(d => d.feature === featureName);
-            console.log('按特征名过滤后数量:', filtered.length);
-
             if (selectedClass !== -1) {
                 filtered = filtered.filter(d => d.class == selectedClass);
-                console.log('再按类别过滤后数量:', filtered.length);
             }
-
             if (filtered.length === 0) {
-                shapDepChart.clear();
                 shapDepChart.setOption({
-                    title: {
-                        text: 'SHAP 依赖图：' + featureName + '（无数据）',
-                        left: 'center'
-                    }
+                    title: { text: 'SHAP 依赖图：' + featureName + '（无数据）', left: 'center' }
                 });
                 return;
             }
 
-            // 调试：输出第一条记录的值和类型
-            console.log('第一条记录:', filtered[0]);
-            console.log('feature_value 类型:', typeof filtered[0].feature_value);
-            console.log('feature_value 值:', filtered[0].feature_value);
-            if (filtered[0].feature_value_label) {
-                console.log('feature_value_label:', filtered[0].feature_value_label);
-            }
-
-            // 构建散点数据，过滤掉无效数值
             var scatterData = [];
-            var validCount = 0;
+            var labelMap = {};
+            var hasLabel = false;
             filtered.forEach(function(d) {
                 var val = parseFloat(d.feature_value);
                 if (!isNaN(val)) {
                     scatterData.push([val, d.shap_value, val]);
-                    validCount++;
-                } else {
-                    console.warn('忽略无效 feature_value：', d.feature_value, '（特征：' + featureName + '）');
+                    if (d.feature_value_label != null && d.feature_value_label !== '') {
+                        hasLabel = true;
+                        labelMap[val] = d.feature_value_label;
+                    }
                 }
             });
 
-            console.log('有效散点数量:', scatterData.length, '/', filtered.length);
-
             if (scatterData.length === 0) {
-                shapDepChart.clear();
                 shapDepChart.setOption({
-                    title: {
-                        text: 'SHAP 依赖图：' + featureName + '（数值无效，无法绘图）',
-                        left: 'center'
-                    }
+                    title: { text: 'SHAP 依赖图：' + featureName + '（数值无效）', left: 'center' }
                 });
                 return;
             }
@@ -324,10 +290,26 @@
             var maxVal = Math.max(...scatterData.map(d => d[0]));
             var featureDisplayName = filtered[0].feature_name || featureName;
 
-            // 极值相等时微调
-            if (minVal === maxVal) {
-                minVal -= 0.5;
-                maxVal += 0.5;
+            var xAxisConfig = {
+                type: 'value',
+                name: featureDisplayName + ' 取值'
+            };
+            if (hasLabel) {
+                xAxisConfig.axisLabel = {
+                    formatter: function(value) {
+                        return labelMap[value] || value;
+                    }
+                };
+                xAxisConfig.interval = 1;
+                if (minVal === maxVal) {
+                    xAxisConfig.min = minVal - 1;
+                    xAxisConfig.max = maxVal + 1;
+                }
+            } else {
+                if (minVal === maxVal) {
+                    xAxisConfig.min = minVal - 0.5;
+                    xAxisConfig.max = maxVal + 0.5;
+                }
             }
 
             shapDepChart.setOption({
@@ -344,7 +326,7 @@
                     }
                 },
                 grid: { left: '10%', right: '10%', top: '15%', bottom: '10%' },
-                xAxis: { type: 'value', name: featureDisplayName + ' 取值' },
+                xAxis: xAxisConfig,
                 yAxis: { type: 'value', name: 'SHAP 值' },
                 visualMap: {
                     show: false,
@@ -358,15 +340,15 @@
                     data: scatterData,
                     symbolSize: 8
                 }]
-            });
+            }, true);
         }
 
-        // 更新分类下拉框
+        // 分类下拉框
         function updateClassOptions(data) {
             var classMap = new Map();
             data.forEach(d => {
                 if (d.class !== undefined && d.class !== null) {
-                    var key = d.class;
+                    var key = parseInt(d.class);
                     var label = d.class_label || ('类别 ' + d.class);
                     classMap.set(key, label);
                 }
@@ -378,7 +360,6 @@
             });
         }
 
-        // 整体刷新
         async function refresh() {
             var model = $('#model-select').val();
             if (!model) return;
@@ -396,6 +377,11 @@
             if (model !== currentModel) {
                 try {
                     rawShapData = await fetchShapData(model);
+                    rawShapData.forEach(d => {
+                        if (d.class !== undefined && d.class !== null) {
+                            d.class = parseInt(d.class);
+                        }
+                    });
                     currentModel = model;
                     updateClassOptions(rawShapData);
                 } catch (e) {
@@ -406,9 +392,14 @@
             renderShapImportance(rawShapData, classFilter);
         }
 
-        // 事件绑定
-        $('#refresh-btn').click(function() {
+        // 事件绑定：所有下拉框立即生效
+        $('#model-select').change(function() {
             currentModel = '';
+            refresh();
+        });
+
+        $('#imp-type').change(function() {
+            // 重要性类型改变不需要重置 currentModel，但需要重新请求特征重要性
             refresh();
         });
 
@@ -418,15 +409,10 @@
             }
         });
 
-        $('#model-select').change(function() {
-            currentModel = '';
-            refresh();
-        });
-
         $(window).resize(function() {
             fiChart.resize();
             shapImpChart.resize();
-            shapDepChart.resize();
+            if (shapDepChart) shapDepChart.resize();
         });
 
         // 启动

@@ -6,7 +6,7 @@ import ml.dmlc.xgboost4j.java.XGBoost;
 import ml.dmlc.xgboost4j.java.XGBoostError;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
-import com.fasterxml.jackson.databind.ObjectMapper;  // 需要 Jackson 依赖
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.io.*;
 import java.util.*;
@@ -142,16 +142,16 @@ public class XgboostService {
 
     }
 
-    // 静态方法（内部工具）：创建一个表示分类选项的 Map，包含显示标签 label 和对应的编码值 value
     private static Map<String, Object> option(String label, int value) {
+        // 静态方法（在静态初始化中使用）：创建一个表示分类选项的 Map，包含显示标签 label 和对应的编码值 value
         Map<String, Object> map = new HashMap<>();
         map.put("label", label);
         map.put("value", value);
         return map;
     }
 
-    // 静态方法（内部工具）：添加特征到全特征池
     private static void addFeature(String key, String name, String type, List<Map<String, Object>> options) {
+        // 静态方法（在静态初始化中使用）：添加特征到全特征池
         Map<String, Object> feat = new HashMap<>();
         feat.put("key", key);
         feat.put("name", name);
@@ -162,21 +162,12 @@ public class XgboostService {
         ALL_FEATURES.add(feat);
     }
 
-    private final Map<String, Booster> boosterCache = new HashMap<>();
-    // 实例级别的缓存，存储已加载的 Booster 模型对象，避免重复从文件加载，提高预测速度
-
-    // ========== 新增：预处理参数缓存 ==========
-    private final Map<String, PreprocessParams> preprocessCache = new HashMap<>();
-
-    /**
-     * 内部类：存储模型的归一化参数和特征顺序
-     */
     private static class PreprocessParams {
-        List<String> numericColumns;      // 数值列名列表，顺序与 mean/std 对应
+        List<String> numericColumns; // 数值列名列表，顺序与 mean/std 对应
         double[] mean;
         double[] std;
-        List<String> featureOrder;        // 可选，所有特征列的顺序（与训练时一致）
-    }
+        List<String> featureOrder; // 所有特征列的顺序（与训练时一致）
+    } // 内部类：存储模型的归一化参数和特征顺序
 
     /**
      * 加载预处理参数文件 (models/{modelId}_scaler)
@@ -206,6 +197,8 @@ public class XgboostService {
         }
     }
 
+    private final Map<String, PreprocessParams> preprocessCache = new HashMap<>();
+
     /**
      * 获取缓存的预处理参数，若无则加载
      */
@@ -217,7 +210,24 @@ public class XgboostService {
         preprocessCache.put(modelId, params);
         return params;
     }
-    // =========================================
+
+    private final Map<String, Booster> boosterCache = new HashMap<>();
+    // 实例级别的缓存，存储已加载的 Booster 模型对象，避免重复从文件加载，提高预测速度
+
+    /**
+     * 获取缓存的Booster，若无则从 classpath:models/{modelId}.json 加载
+     */
+    private Booster getCachedBooster(String modelId) throws IOException, XGBoostError {
+        if (boosterCache.containsKey(modelId)) {
+            return boosterCache.get(modelId);
+        }
+        ClassPathResource resource = new ClassPathResource("models/" + modelId + ".json");
+        try (InputStream inputStream = resource.getInputStream()) {
+            Booster booster = XGBoost.loadModel(inputStream);
+            boosterCache.put(modelId, booster);
+            return booster;
+        }
+    }
 
     /**
      * 获取可用模型列表
@@ -359,18 +369,4 @@ public class XgboostService {
         }
     }
 
-    /**
-     * 获取缓存的Booster，若无则从 classpath:models/{modelId}.json 加载
-     */
-    private Booster getCachedBooster(String modelId) throws IOException, XGBoostError {
-        if (boosterCache.containsKey(modelId)) {
-            return boosterCache.get(modelId);
-        }
-        ClassPathResource resource = new ClassPathResource("models/" + modelId + ".json");
-        try (InputStream inputStream = resource.getInputStream()) {
-            Booster booster = XGBoost.loadModel(inputStream);
-            boosterCache.put(modelId, booster);
-            return booster;
-        }
-    }
 }

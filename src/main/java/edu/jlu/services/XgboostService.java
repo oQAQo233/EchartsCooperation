@@ -140,6 +140,10 @@ public class XgboostService {
         addFeature("felt_rested", "感觉是否休息充分", "categorical", Arrays.asList(
                 option("未恢复", 0), option("休息好了", 1)));
 
+        // 明显目标列(2)
+        addFeature("cognitive_performance_score", "认知能力评分", "numeric", null);
+        addFeature("sleep_disorder_risk", "睡眠情况异常风险", "numeric", null);
+
     }
 
     private static Map<String, Object> option(String label, int value) {
@@ -224,9 +228,30 @@ public class XgboostService {
 
     /**
      * 获取指定模型的输出配置（包含 name, type, labels 等）
+     * 若未显式设置 labels 且模型为分类任务，则尝试从 ALL_FEATURES 中自动推断标签
      */
     public Map<String, Object> getModelOutputConfig(String modelId) {
-        return OUTPUT_CONFIG.get(modelId);
+        Map<String, Object> cfg = OUTPUT_CONFIG.get(modelId);
+        if (cfg == null) {
+            return null;
+        }
+        // 若未设置 labels 且类型为 classification，则尝试推断
+        if ((!cfg.containsKey("labels") || cfg.get("labels") == null)
+                && "classification".equals(cfg.get("type"))) {
+            // 尝试从 ALL_FEATURES 中找到对应目标列的 options
+            for (Map<String, Object> feat : ALL_FEATURES) {
+                if (modelId.equals(feat.get("key")) && feat.containsKey("options")) {
+                    List<Map<String, Object>> options = (List<Map<String, Object>>) feat.get("options");
+                    List<String> labels = new ArrayList<>();
+                    for (Map<String, Object> opt : options) {
+                        labels.add((String) opt.get("label"));
+                    }
+                    cfg.put("labels", labels);
+                    break;
+                }
+            }
+        }
+        return cfg;
     }
 
     private final Map<String, PreprocessParams> preprocessCache = new HashMap<>();

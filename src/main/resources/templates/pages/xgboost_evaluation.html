@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>模型评估结果可视化</title>
+
+    <!-- Bootstrap 5 -->
+    <link th:href="@{/webjars/bootstrap/5.3.2/css/bootstrap.min.css}" rel="stylesheet">
+    <!-- 自定义样式 -->
+    <link th:href="@{/css/custom.css}" rel="stylesheet">
+    <!-- 字体图标 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <!-- ECharts -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+</head>
+<body>
+
+<!-- 侧边栏（与预测页一致） -->
+<div class="sidebar">
+    <ul class="sidebar-menu">
+        <li>
+            <a href="/sleep/dashboard">
+                <i class="bi bi-grid-1x2 icon"></i>
+                数据仪表盘
+            </a>
+        </li>
+        <li>
+            <a href="/sleep/records">
+                <i class="bi bi-table icon"></i>
+                数据记录表
+            </a>
+        </li>
+        <li>
+            <a href="/sleep/map">
+                <i class="bi bi-globe-americas icon"></i>
+                全球分布图
+            </a>
+        </li>
+        <li>
+            <a href="#" class="active">
+                <i class="bi bi-cpu icon"></i>
+                模型预测
+            </a>
+        </li>
+    </ul>
+</div>
+
+<!-- 导航栏 -->
+<nav class="navbar">
+    <a class="navbar-brand" href="#">
+        <i class="bi bi-moon-stars"></i>
+        睡眠健康分析平台
+    </a>
+    <span class="navbar-text">
+        <i class="bi bi-person-circle"></i> 欢迎使用数据分析系统
+    </span>
+</nav>
+
+<!-- 主内容区 -->
+<div class="main-content">
+    <div class="page-header">
+        <h1 class="page-title">模型评估结果可视化</h1>
+        <p class="page-subtitle">特征重要性 · SHAP 分析 · 依赖图</p>
+    </div>
+
+    <!-- 控制面板卡片 -->
+    <div class="chart-card mb-4">
+        <h3 class="chart-title"><i class="bi bi-sliders"></i> 分析控制</h3>
+        <div class="p-3">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-auto">
+                    <label for="model-select" class="form-label">模型选择</label>
+                    <select id="model-select" class="form-select"></select>
+                </div>
+                <div class="col-md-auto">
+                    <label for="imp-type" class="form-label">重要性类型</label>
+                    <select id="imp-type" class="form-select">
+                        <option value="weight">Weight (出现次数)</option>
+                        <option value="gain">Gain (平均增益)</option>
+                        <option value="cover">Cover (平均覆盖)</option>
+                    </select>
+                </div>
+                <div class="col-md-auto">
+                    <label for="class-select" class="form-label">分类类别</label>
+                    <select id="class-select" class="form-select">
+                        <option value="-1">全部类别</option>
+                    </select>
+                </div>
+                <div class="col-md-auto">
+                    <button id="refresh-btn" class="btn btn-primary">
+                        <i class="bi bi-arrow-repeat"></i> 刷新
+                    </button>
+                </div>
+                <div class="col-md-auto ms-auto">
+                    <a href="/sleep/xgboost" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> 返回预测页
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 双图并排：特征重要性 & SHAP 全局重要性 -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-6">
+            <div class="chart-card">
+                <h3 class="chart-title"><i class="bi bi-bar-chart"></i> 特征重要性</h3>
+                <div id="fi-chart" style="height:700px;"></div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="chart-card">
+                <h3 class="chart-title"><i class="bi bi-graph-up"></i> SHAP 特征重要性</h3>
+                <div id="shap-importance-chart" style="height:700px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SHAP 依赖图 -->
+    <div class="chart-card">
+        <h3 class="chart-title"><i class="bi bi-scatter-chart"></i> SHAP 依赖图 <small class="text-muted">(点击上方 SHAP 条形图切换特征)</small></h3>
+        <div id="shap-dep-box" style="height:500px;"></div>
+    </div>
+</div>
+
+<!-- Scripts -->
+<script th:src="@{/webjars/bootstrap/5.3.2/js/bootstrap.bundle.min.js}"></script>
+<script th:src="@{/js/jquery-3.4.1.min.js}"></script>
+<script>
+    $(function() {
+        // 初始化图表
+        var fiChart = echarts.init(document.getElementById('fi-chart'));
+        var shapImpChart = echarts.init(document.getElementById('shap-importance-chart'));
+        var shapDepChart = echarts.init(document.getElementById('shap-dep-box'));
+
+        var currentModel = '';
+        var rawShapData = [];
+        var featureList = [];
+
+        function getUrlParam(name) {
+            var match = window.location.search.match(new RegExp('[?&]' + name + '=([^&]*)'));
+            return match ? decodeURIComponent(match[1]) : null;
+        }
+        var initModel = getUrlParam('model');
+
+        // 加载可用模型列表
+        function loadModelList(callback) {
+            $.get('/sleep/api/models', function(models) {
+                var $select = $('#model-select').empty();
+                $.each(models, function(i, m) {
+                    $select.append('<option value="' + m.id + '">' + m.name + '</option>');
+                });
+                if (initModel && models.some(m => m.id === initModel)) {
+                    $select.val(initModel);
+                }
+                if (callback) callback();
+            });
+        }
+
+        // 获取特征重要性
+        async function fetchFeatureImportance(model, type) {
+            const resp = await fetch('/api/eval/importance?model=' + encodeURIComponent(model) + '&type=' + type);
+            if (!resp.ok) throw new Error('请求失败');
+            return await resp.json();
+        }
+
+        // 获取SHAP数据
+        async function fetchShapData(model) {
+            const resp = await fetch('/api/eval/shap?model=' + encodeURIComponent(model));
+            if (!resp.ok) {
+                const text = await resp.text();
+                throw new Error('请求失败: ' + text);
+            }
+            return await resp.json();
+        }
+
+        // 绘制特征重要性
+        function renderFeatureImportance(data, typeLabel) {
+            var features = data.map(d => d.feature_name || d.feature);
+            var values = data.map(d => d.importance);
+            fiChart.setOption({
+                title: { text: '特征重要性 (' + typeLabel + ')', left: 'center' },
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                grid: { left: '20%', right: '10%', top: '15%', bottom: '5%' },
+                xAxis: { type: 'value', name: '重要性' },
+                yAxis: { type: 'category', data: features.reverse(), inverse: true },
+                series: [{
+                    type: 'bar',
+                    data: values.reverse(),
+                    itemStyle: { color: '#1890ff' },
+                    label: { show: true, position: 'right', fontSize: 10 }
+                }]
+            });
+        }
+
+        // 绘制SHAP全局重要性（修复点击映射错误）
+        function renderShapImportance(data, selectedClass) {
+            let filtered = data;
+            if (selectedClass !== -1) {
+                filtered = data.filter(d => d.class == selectedClass);
+            }
+            const agg = {};
+            filtered.forEach(d => {
+                if (!agg[d.feature]) agg[d.feature] = [];
+                agg[d.feature].push(Math.abs(d.shap_value));
+            });
+            var features = Object.keys(agg);
+            var meanShap = features.map(f => agg[f].reduce((a,b) => a+b, 0) / agg[f].length);
+            // 按重要性降序排序
+            var sortedIdx = meanShap.map((v,i) => i).sort((a,b) => meanShap[b] - meanShap[a]);
+            var sortedFeatures = sortedIdx.map(i => features[i]); // 原始 key 列表（降序）
+            var sortedValues = sortedIdx.map(i => meanShap[i]);
+
+            // 生成对应的显示名称（保持与 sortedFeatures 相同的顺序）
+            var displayNames = sortedFeatures.map(f => {
+                var found = data.find(d => d.feature === f);
+                return found ? (found.feature_name || f) : f;
+            });
+            featureList = sortedFeatures; // 保留，但未实际使用
+
+            // 渲染图表（使用副本反转，避免修改原数组）
+            shapImpChart.setOption({
+                title: { text: 'SHAP 特征重要性 (平均|SHAP|)', left: 'center' },
+                tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+                grid: { left: '25%', right: '10%', top: '15%', bottom: '5%' },
+                xAxis: { type: 'value', name: '平均 |SHAP|' },
+                yAxis: {
+                    type: 'category',
+                    data: displayNames.slice().reverse(),   // 副本反转，不改变原数组
+                    inverse: true
+                },
+                series: [{
+                    type: 'bar',
+                    data: sortedValues.slice().reverse(),   // 数值同样需要对应反转
+                    itemStyle: { color: '#52c41a' },
+                    label: { show: true, position: 'right', fontSize: 10 }
+                }]
+            });
+
+            // 默认显示第一个特征（最重要的）的依赖图
+            if (sortedFeatures.length > 0) {
+                renderShapDependence(data, sortedFeatures[0], selectedClass);
+            } else {
+                shapDepChart.clear();
+                shapDepChart.setOption({ title: { text: '无 SHAP 数据', left: 'center' } });
+            }
+
+            // 修复点击事件：通过显示名称在原数组中找到索引，再用索引获取真实 key
+            shapImpChart.off('click');
+            shapImpChart.on('click', function(params) {
+                if (params.name) {
+                    var idx = displayNames.indexOf(params.name);   // 在未反转的数组中查找
+                    if (idx !== -1 && idx < sortedFeatures.length) {
+                        var realFeature = sortedFeatures[idx];
+                        renderShapDependence(data, realFeature, selectedClass);
+                    }
+                }
+            });
+        }
+
+        // 绘制SHAP依赖图（增加调试日志与详细提示）
+        // 绘制SHAP依赖图（修复 NaN 问题并增加调试）
+        function renderShapDependence(data, featureName, selectedClass) {
+            console.log('=== 绘制依赖图 ===');
+            console.log('请求特征 key:', featureName);
+            console.log('当前类别过滤:', selectedClass);
+            console.log('原始 SHAP 数据总量:', data.length);
+
+            let filtered = data.filter(d => d.feature === featureName);
+            console.log('按特征名过滤后数量:', filtered.length);
+
+            if (selectedClass !== -1) {
+                filtered = filtered.filter(d => d.class == selectedClass);
+                console.log('再按类别过滤后数量:', filtered.length);
+            }
+
+            if (filtered.length === 0) {
+                shapDepChart.clear();
+                shapDepChart.setOption({
+                    title: {
+                        text: 'SHAP 依赖图：' + featureName + '（无数据）',
+                        left: 'center'
+                    }
+                });
+                return;
+            }
+
+            // 调试：输出第一条记录的值和类型
+            console.log('第一条记录:', filtered[0]);
+            console.log('feature_value 类型:', typeof filtered[0].feature_value);
+            console.log('feature_value 值:', filtered[0].feature_value);
+            if (filtered[0].feature_value_label) {
+                console.log('feature_value_label:', filtered[0].feature_value_label);
+            }
+
+            // 构建散点数据，过滤掉无效数值
+            var scatterData = [];
+            var validCount = 0;
+            filtered.forEach(function(d) {
+                var val = parseFloat(d.feature_value);
+                if (!isNaN(val)) {
+                    scatterData.push([val, d.shap_value, val]);
+                    validCount++;
+                } else {
+                    console.warn('忽略无效 feature_value：', d.feature_value, '（特征：' + featureName + '）');
+                }
+            });
+
+            console.log('有效散点数量:', scatterData.length, '/', filtered.length);
+
+            if (scatterData.length === 0) {
+                shapDepChart.clear();
+                shapDepChart.setOption({
+                    title: {
+                        text: 'SHAP 依赖图：' + featureName + '（数值无效，无法绘图）',
+                        left: 'center'
+                    }
+                });
+                return;
+            }
+
+            var minVal = Math.min(...scatterData.map(d => d[0]));
+            var maxVal = Math.max(...scatterData.map(d => d[0]));
+            var featureDisplayName = filtered[0].feature_name || featureName;
+
+            // 极值相等时微调
+            if (minVal === maxVal) {
+                minVal -= 0.5;
+                maxVal += 0.5;
+            }
+
+            shapDepChart.setOption({
+                title: { text: 'SHAP 依赖图：' + featureDisplayName, left: 'center' },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(p) {
+                        var record = filtered[p.dataIndex];
+                        var valText = p.value[0].toFixed(4);
+                        if (record && record.feature_value_label) {
+                            valText += ' (' + record.feature_value_label + ')';
+                        }
+                        return '特征值: ' + valText + '<br/>SHAP: ' + p.value[1].toFixed(4);
+                    }
+                },
+                grid: { left: '10%', right: '10%', top: '15%', bottom: '10%' },
+                xAxis: { type: 'value', name: featureDisplayName + ' 取值' },
+                yAxis: { type: 'value', name: 'SHAP 值' },
+                visualMap: {
+                    show: false,
+                    dimension: 2,
+                    min: minVal,
+                    max: maxVal,
+                    inRange: { color: ['#313695', '#4575b4', '#74add1', '#abd9e9', '#fee090', '#fdae61', '#f46d43', '#d73027'] }
+                },
+                series: [{
+                    type: 'scatter',
+                    data: scatterData,
+                    symbolSize: 8
+                }]
+            });
+        }
+
+        // 更新分类下拉框
+        function updateClassOptions(data) {
+            var classMap = new Map();
+            data.forEach(d => {
+                if (d.class !== undefined && d.class !== null) {
+                    var key = d.class;
+                    var label = d.class_label || ('类别 ' + d.class);
+                    classMap.set(key, label);
+                }
+            });
+            var $select = $('#class-select');
+            $select.empty().append('<option value="-1">全部类别</option>');
+            classMap.forEach(function(label, key) {
+                $select.append('<option value="' + key + '">' + label + '</option>');
+            });
+        }
+
+        // 整体刷新
+        async function refresh() {
+            var model = $('#model-select').val();
+            if (!model) return;
+            var impType = $('#imp-type').val();
+            var classFilter = parseInt($('#class-select').val());
+
+            try {
+                const fiData = await fetchFeatureImportance(model, impType);
+                var typeLabel = $('#imp-type option:selected').text();
+                renderFeatureImportance(fiData, typeLabel);
+            } catch (e) {
+                alert('获取特征重要性失败：' + e.message);
+            }
+
+            if (model !== currentModel) {
+                try {
+                    rawShapData = await fetchShapData(model);
+                    currentModel = model;
+                    updateClassOptions(rawShapData);
+                } catch (e) {
+                    alert('获取SHAP数据失败：' + e.message);
+                    return;
+                }
+            }
+            renderShapImportance(rawShapData, classFilter);
+        }
+
+        // 事件绑定
+        $('#refresh-btn').click(function() {
+            currentModel = '';
+            refresh();
+        });
+
+        $('#class-select').change(function() {
+            if (rawShapData.length > 0) {
+                renderShapImportance(rawShapData, parseInt(this.value));
+            }
+        });
+
+        $('#model-select').change(function() {
+            currentModel = '';
+            refresh();
+        });
+
+        $(window).resize(function() {
+            fiChart.resize();
+            shapImpChart.resize();
+            shapDepChart.resize();
+        });
+
+        // 启动
+        loadModelList(function() {
+            refresh();
+        });
+    });
+</script>
+</body>
+</html>

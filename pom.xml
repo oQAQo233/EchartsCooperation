@@ -82,6 +82,14 @@
             <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
         </dependency>
+
+        <!-- 配置 xgboost 插件 -->
+        <dependency>
+            <groupId>ml.dmlc</groupId>
+            <artifactId>xgboost4j_2.12</artifactId>
+            <!-- 请检查 Maven Central 获取最新的可用版本，例如2.1.4 -->
+            <version>2.1.4</version>
+        </dependency>
     </dependencies>
 
     <build>

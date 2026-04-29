@@ -140,6 +140,10 @@ public class XgboostService {
         addFeature("felt_rested", "感觉是否休息充分", "categorical", Arrays.asList(
                 option("未恢复", 0), option("休息好了", 1)));
 
+        // 明显目标列(2)
+        addFeature("cognitive_performance_score", "认知能力评分", "numeric", null);
+        addFeature("sleep_disorder_risk", "睡眠情况异常风险", "numeric", null);
+
     }
 
     private static Map<String, Object> option(String label, int value) {
@@ -162,7 +166,25 @@ public class XgboostService {
         ALL_FEATURES.add(feat);
     }
 
-    private static class PreprocessParams {
+    private final Map<String, Booster> boosterCache = new HashMap<>();
+    // 实例级别的缓存，存储已加载的 Booster 模型对象，避免重复从文件加载，提高预测速度
+
+    /**
+     * 获取缓存的Booster，若无则从 classpath:models/{modelId}.json 加载
+     */
+    private Booster getCachedBooster(String modelId) throws IOException, XGBoostError {
+        if (boosterCache.containsKey(modelId)) {
+            return boosterCache.get(modelId);
+        }
+        ClassPathResource resource = new ClassPathResource("models/" + modelId + ".json");
+        try (InputStream inputStream = resource.getInputStream()) {
+            Booster booster = XGBoost.loadModel(inputStream);
+            boosterCache.put(modelId, booster);
+            return booster;
+        }
+    }
+
+    public static class PreprocessParams {
         List<String> numericColumns; // 数值列名列表，顺序与 mean/std 对应
         double[] mean;
         double[] std;
@@ -172,7 +194,7 @@ public class XgboostService {
     /**
      * 加载预处理参数文件 (models/{modelId}_scaler)
      */
-    private PreprocessParams loadPreprocessParams(String modelId) throws IOException {
+    public PreprocessParams loadPreprocessParams(String modelId) throws IOException {
         String resourcePath = "models/" + modelId + "_scaler";
         ClassPathResource resource = new ClassPathResource(resourcePath);
         try (InputStream is = resource.getInputStream()) {
@@ -197,6 +219,41 @@ public class XgboostService {
         }
     }
 
+    /**
+     * 获取全部特征元数据（包含 key, name, type, options）
+     */
+    public List<Map<String, Object>> getAllFeatures() {
+        return ALL_FEATURES;
+    }
+
+    /**
+     * 获取指定模型的输出配置（包含 name, type, labels 等）
+     * 若未显式设置 labels 且模型为分类任务，则尝试从 ALL_FEATURES 中自动推断标签
+     */
+    public Map<String, Object> getModelOutputConfig(String modelId) {
+        Map<String, Object> cfg = OUTPUT_CONFIG.get(modelId);
+        if (cfg == null) {
+            return null;
+        }
+        // 若未设置 labels 且类型为 classification，则尝试推断
+        if ((!cfg.containsKey("labels") || cfg.get("labels") == null)
+                && "classification".equals(cfg.get("type"))) {
+            // 尝试从 ALL_FEATURES 中找到对应目标列的 options
+            for (Map<String, Object> feat : ALL_FEATURES) {
+                if (modelId.equals(feat.get("key")) && feat.containsKey("options")) {
+                    List<Map<String, Object>> options = (List<Map<String, Object>>) feat.get("options");
+                    List<String> labels = new ArrayList<>();
+                    for (Map<String, Object> opt : options) {
+                        labels.add((String) opt.get("label"));
+                    }
+                    cfg.put("labels", labels);
+                    break;
+                }
+            }
+        }
+        return cfg;
+    }
+
     private final Map<String, PreprocessParams> preprocessCache = new HashMap<>();
 
     /**
@@ -209,24 +266,6 @@ public class XgboostService {
         PreprocessParams params = loadPreprocessParams(modelId);
         preprocessCache.put(modelId, params);
         return params;
-    }
-
-    private final Map<String, Booster> boosterCache = new HashMap<>();
-    // 实例级别的缓存，存储已加载的 Booster 模型对象，避免重复从文件加载，提高预测速度
-
-    /**
-     * 获取缓存的Booster，若无则从 classpath:models/{modelId}.json 加载
-     */
-    private Booster getCachedBooster(String modelId) throws IOException, XGBoostError {
-        if (boosterCache.containsKey(modelId)) {
-            return boosterCache.get(modelId);
-        }
-        ClassPathResource resource = new ClassPathResource("models/" + modelId + ".json");
-        try (InputStream inputStream = resource.getInputStream()) {
-            Booster booster = XGBoost.loadModel(inputStream);
-            boosterCache.put(modelId, booster);
-            return booster;
-        }
     }
 
     /**

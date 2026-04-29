@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>维度对比分析 - 睡眠健康分析平台</title>
+
+    <link th:href="@{/webjars/bootstrap/5.3.2/css/bootstrap.min.css}" rel="stylesheet">
+    <link th:href="@{/css/custom.css}" rel="stylesheet">
+    <link th:href="@{/css/comparison.css}" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+</head>
+<body>
+
+    <div class="sidebar">
+        <ul class="sidebar-menu">
+            <li>
+                <a href="/sleep/dashboard">
+                    <i class="bi bi-grid-1x2 icon"></i>
+                    数据仪表盘
+                </a>
+            </li>
+            <li>
+                <a href="/sleep/records">
+                    <i class="bi bi-table icon"></i>
+                    数据记录表
+                </a>
+            </li>
+            <li>
+                <a href="/sleep/distribution">
+                    <i class="bi bi-pie-chart icon"></i>
+                    睡眠质量分布
+                </a>
+            </li>
+            <li>
+                <a href="/sleep/map">
+                    <i class="bi bi-globe-americas icon"></i>
+                    全球分布图
+                </a>
+            </li>
+            <li>
+                <a href="/sleep/xgboost">
+                    <i class="bi bi-cpu icon"></i>
+                    模型预测
+                </a>
+            </li>
+            <li>
+                <a href="/sleep/comparison" class="active">
+                    <i class="bi bi-bar-chart-steps icon"></i>
+                    维度对比分析
+                </a>
+            </li>
+        </ul>
+    </div>
+
+    <nav class="navbar">
+        <a class="navbar-brand" href="#">
+            <i class="bi bi-moon-stars"></i>
+            睡眠健康分析平台
+        </a>
+        <span class="navbar-text">
+            <i class="bi bi-person-circle"></i> 欢迎使用数据分析系统
+        </span>
+    </nav>
+
+    <div class="main-content">
+        <div class="page-header">
+            <h1 class="page-title">维度对比分析</h1>
+            <p class="page-subtitle">选择维度查看各区间人数及指标对比</p>
+        </div>
+
+        <div class="comparison-controls">
+            <div class="tab-group">
+                <label class="tab-label">维度</label>
+                <div class="tab-buttons" id="dimensionTabs">
+                    <button class="tab-btn active" data-type="age">年龄段</button>
+                    <button class="tab-btn" data-type="gender">性别</button>
+                    <button class="tab-btn" data-type="occupation">职业</button>
+                    <button class="tab-btn" data-type="bmi">BMI区间</button>
+                    <button class="tab-btn" data-type="country">国家</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="comparison-container">
+            <div class="chart-section left-section">
+                <div class="chart-card">
+                    <h3 class="chart-title">
+                        <i class="bi bi-bar-chart"></i>
+                        <span id="barChartTitle">各区间人数分布</span>
+                    </h3>
+                    <div class="chart-container" id="barChart"></div>
+                    <div class="checkbox-section" id="categoryCheckboxes"></div>
+                </div>
+            </div>
+            <div class="chart-section right-section">
+                <div class="chart-card">
+                    <h3 class="chart-title">
+                        <i class="bi bi-radar"></i>
+                        <span id="radarChartTitle">指标对比</span>
+                    </h3>
+                    <div class="chart-container" id="radarChart"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script th:src="@{/webjars/bootstrap/5.3.2/js/bootstrap.bundle.min.js}"></script>
+    <script th:src="@{/js/jquery-3.4.1.min.js}"></script>
+    <script th:src="@{/js/echarts.min.js}"></script>
+    <script th:src="@{/js/comparison.js}"></script>
+</body>
+</html>

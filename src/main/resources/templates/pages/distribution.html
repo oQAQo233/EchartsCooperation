@@ -8,7 +8,7 @@
     <link th:href="@{/webjars/bootstrap/5.3.2/css/bootstrap.min.css}" rel="stylesheet">
     <link th:href="@{/css/custom.css}" rel="stylesheet">
     <link th:href="@{/css/distribution.css}" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/bootstrap-icons/1.11.1/font/bootstrap-icons.min.css">
 </head>
 <body>
 
@@ -88,12 +88,22 @@
             </div>
         </div>
 
-        <div class="chart-card full-width">
-            <h3 class="chart-title">
-                <i class="bi bi-pie-chart-fill"></i>
-                <span id="chartTitle">年龄段 - 睡眠时长区间</span>
-            </h3>
-            <div class="chart-container" id="distributionChart" style="height: 600px;"></div>
+        <div class="charts-grid">
+            <div class="chart-card full-width">
+                <h3 class="chart-title">
+                    <i class="bi bi-pie-chart-fill"></i>
+                    <span id="chartTitle">年龄段 - 睡眠时长区间</span>
+                </h3>
+                <div class="chart-container" id="distributionChart" style="height: 600px;"></div>
+            </div>
+
+            <div class="chart-card full-width" id="draggedBarCard">
+                <h3 class="chart-title">
+                    <i class="bi bi-bar-chart-fill"></i>
+                    <span>已拖拽数据</span>
+                </h3>
+                <div class="bar-chart-container" id="draggedBarChart" style="height: 300px;"></div>
+            </div>
         </div>
     </div>
 

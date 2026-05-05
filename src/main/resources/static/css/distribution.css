@@ -44,3 +44,50 @@
     border-color: #6366f1;
     color: #fff;
 }
+
+/* 拖拽预览元素 */
+.drag-preview {
+    position: fixed;
+    pointer-events: none;
+    opacity: 0.85;
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    z-index: 10000;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    display: none;
+    white-space: nowrap;
+}
+
+.drag-preview .preview-name {
+    font-size: 14px;
+    margin-bottom: 2px;
+}
+
+.drag-preview .preview-value {
+    font-size: 12px;
+    opacity: 0.9;
+}
+
+/* 柱状图容器 */
+.bar-chart-container {
+    position: relative;
+}
+
+#draggedBarCard {
+    margin-top: 20px;
+}
+
+/* 拖拽目标区域高亮 */
+.chart-container.drag-over {
+    outline: 2px dashed #6366f1;
+    outline-offset: 4px;
+}
+
+/* 扇形拖拽中的半透明效果 */
+.pie-sector-dragging {
+    opacity: 0.5 !important;
+}

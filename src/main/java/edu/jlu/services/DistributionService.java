@@ -4,10 +4,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 public class DistributionService {
@@ -16,16 +13,18 @@ public class DistributionService {
     private JdbcTemplate jdbcTemplate;
 
     public Map<String, Object> getDistributionData(String innerType, String outerType) {
-        String innerBin = buildInnerBinSql(innerType);
-        String outerBin = buildOuterBinSql(outerType);
+        // 尝试从聚合表获取数据
+        String sql = "SELECT inner_bucket AS inner_name, outer_bucket AS outer_name, record_count AS value " +
+                "FROM agg_distribution " +
+                "WHERE inner_type = ? AND outer_type = ? " +
+                "ORDER BY inner_name, outer_name";
 
-        String sql = String.format(
-            "SELECT %s AS inner_name, %s AS outer_name, COUNT(*) AS value " +
-            "FROM sleep_health_dataset GROUP BY %s, %s ORDER BY inner_name, outer_name",
-            innerBin, outerBin, innerBin, outerBin
-        );
+        List<Map<String, Object>> rawData = jdbcTemplate.queryForList(sql, innerType, outerType);
 
-        List<Map<String, Object>> rawData = jdbcTemplate.queryForList(sql);
+        // 如果聚合表没有数据，回退到原始SQL查询
+        if (rawData.isEmpty()) {
+            rawData = queryOriginalDistribution(innerType, outerType);
+        }
 
         // innerList: aggregate by inner_name
         Map<String, Integer> innerCounts = new HashMap<>();
@@ -59,6 +58,22 @@ public class DistributionService {
         return result;
     }
 
+    /**
+     * 回退到原始SQL查询（当聚合表没有预计算数据时）
+     */
+    private List<Map<String, Object>> queryOriginalDistribution(String innerType, String outerType) {
+        String innerBin = buildInnerBinSql(innerType);
+        String outerBin = buildOuterBinSql(outerType);
+
+        String sql = String.format(
+            "SELECT %s AS inner_name, %s AS outer_name, COUNT(*) AS value " +
+            "FROM sleep_health_dataset GROUP BY %s, %s ORDER BY inner_name, outer_name",
+            innerBin, outerBin, innerBin, outerBin
+        );
+
+        return jdbcTemplate.queryForList(sql);
+    }
+
     private String buildInnerBinSql(String type) {
         switch (type) {
             case "age":
@@ -68,7 +83,7 @@ public class DistributionService {
                        "  WHEN age < 45 THEN '35-44' " +
                        "  WHEN age < 55 THEN '45-54' " +
                        "  WHEN age < 65 THEN '55-64' " +
-                       "  ELSE '≥65' END";
+                       "  ELSE '>=65' END";
             case "gender":
                 return "gender";
             case "occupation":
@@ -101,19 +116,19 @@ public class DistributionService {
                        "  WHEN rem_percentage < 15 THEN '<15%' " +
                        "  WHEN rem_percentage < 20 THEN '15-20%' " +
                        "  WHEN rem_percentage < 25 THEN '20-25%' " +
-                       "  ELSE '≥25%' END";
+                       "  ELSE '>=25%' END";
             case "deepSleep":
                 return "CASE " +
                        "  WHEN deep_sleep_percentage < 20 THEN '<20%' " +
                        "  WHEN deep_sleep_percentage < 30 THEN '20-30%' " +
                        "  WHEN deep_sleep_percentage < 40 THEN '30-40%' " +
-                       "  ELSE '≥40%' END";
+                       "  ELSE '>=40%' END";
             case "sleepLatency":
                 return "CASE " +
                        "  WHEN sleep_latency_mins < 10 THEN '<10min' " +
                        "  WHEN sleep_latency_mins < 20 THEN '10-20min' " +
                        "  WHEN sleep_latency_mins < 30 THEN '20-30min' " +
-                       "  ELSE '≥30min' END";
+                       "  ELSE '>=30min' END";
             case "wakeEpisodes":
                 return "CASE " +
                        "  WHEN wake_episodes_per_night = 0 THEN '0次' " +

@@ -14,10 +14,9 @@ public class MapService {
     private JdbcTemplate jdbcTemplate;
 
     public List<Map<String, Object>> getCountryDistribution() {
-        String sql = "SELECT country AS name, COUNT(*) AS value, " +
-            "AVG(sleep_duration_hrs) as avgDuration, " +
-            "AVG(sleep_quality_score) as avgQuality " +
-            "FROM sleep_health_dataset GROUP BY country ORDER BY value DESC";
+        String sql = "SELECT country AS name, record_count AS value, " +
+            "avg_duration AS avgDuration, avg_quality AS avgQuality " +
+            "FROM agg_country_distribution ORDER BY value DESC";
         return jdbcTemplate.queryForList(sql);
     }
 }

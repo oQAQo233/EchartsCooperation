@@ -92,81 +92,54 @@ public class SleepHealthService {
         return result;
     }
 
-    public double getAverageSleepDuration() {
-        Double avg = jdbcTemplate.queryForObject(
-            "SELECT AVG(sleep_duration_hrs) FROM sleep_health_dataset",
-            Double.class
-        );
-        return avg != null ? avg : 0.0;
-    }
-
-    // ========== 可视化统计数据 ==========
+    // ========== 可视化统计数据 - 从聚合表获取 ==========
 
     public List<Map<String, Object>> getAgeDistribution() {
-        String sql = "SELECT " +
-            "CASE " +
-            "  WHEN age < 25 THEN '18-24' " +
-            "  WHEN age >= 25 AND age < 35 THEN '25-34' " +
-            "  WHEN age >= 35 AND age < 45 THEN '35-44' " +
-            "  WHEN age >= 45 AND age < 55 THEN '45-54' " +
-            "  WHEN age >= 55 AND age < 65 THEN '55-64' " +
-            "  ELSE '65+' END AS age_group, " +
-            "COUNT(*) AS count " +
-            "FROM sleep_health_dataset " +
-            "GROUP BY age_group " +
-            "ORDER BY age_group";
+        String sql = "SELECT age_group AS age_group, record_count AS count " +
+                "FROM agg_age_distribution ORDER BY age_group";
         return jdbcTemplate.queryForList(sql);
     }
 
     public List<Map<String, Object>> getSleepDisorderRiskDistribution() {
-        String sql = "SELECT sleep_disorder_risk AS name, COUNT(*) AS value " +
-            "FROM sleep_health_dataset GROUP BY sleep_disorder_risk";
+        String sql = "SELECT risk_level AS name, record_count AS value " +
+                "FROM agg_sleep_disorder_risk";
         return jdbcTemplate.queryForList(sql);
     }
 
     public List<Map<String, Object>> getSleepDurationByOccupation() {
-        String sql = "SELECT occupation AS name, AVG(sleep_duration_hrs) AS value " +
-            "FROM sleep_health_dataset GROUP BY occupation ORDER BY value DESC LIMIT 10";
+        String sql = "SELECT occupation AS name, avg_duration AS value " +
+                "FROM agg_sleep_duration_by_occupation ORDER BY value DESC";
         return jdbcTemplate.queryForList(sql);
     }
 
     public List<Map<String, Object>> getSleepQualityByChronotype() {
-        String sql = "SELECT chronotype AS name, AVG(sleep_quality_score) AS value " +
-            "FROM sleep_health_dataset GROUP BY chronotype";
+        String sql = "SELECT chronotype AS name, avg_quality AS value " +
+                "FROM agg_sleep_quality_by_chronotype";
         return jdbcTemplate.queryForList(sql);
     }
 
     public List<Map<String, Object>> getSleepDurationVsQuality() {
         String sql = "SELECT sleep_duration_hrs AS x, sleep_quality_score AS y " +
-            "FROM sleep_health_dataset LIMIT 100";
+                "FROM sleep_health_dataset LIMIT 100";
         return jdbcTemplate.queryForList(sql);
     }
 
     public List<Map<String, Object>> getStressScoreDistribution() {
-        String sql = "SELECT " +
-            "CASE " +
-            "  WHEN stress_score <= 3 THEN '1-3' " +
-            "  WHEN stress_score <= 5 THEN '4-5' " +
-            "  WHEN stress_score <= 7 THEN '6-7' " +
-            "  ELSE '8-10' END AS name, " +
-            "COUNT(*) AS value " +
-            "FROM sleep_health_dataset GROUP BY name ORDER BY name";
+        String sql = "SELECT stress_group AS name, record_count AS value " +
+                "FROM agg_stress_distribution ORDER BY name";
         return jdbcTemplate.queryForList(sql);
     }
 
     public Map<String, Object> getDashboardStats() {
-        Map<String, Object> stats = new java.util.HashMap<>();
-        stats.put("totalRecords", getRecordCount());
-        stats.put("avgSleepDuration", getAverageSleepDuration());
+        String sql = "SELECT total_records, avg_sleep_duration, avg_sleep_quality, avg_stress_score " +
+                "FROM agg_dashboard_stats WHERE id = 1";
+        Map<String, Object> row = jdbcTemplate.queryForMap(sql);
 
-        Double avgQuality = jdbcTemplate.queryForObject(
-            "SELECT AVG(sleep_quality_score) FROM sleep_health_dataset", Double.class);
-        stats.put("avgSleepQuality", avgQuality != null ? avgQuality : 0);
-
-        Double avgStress = jdbcTemplate.queryForObject(
-            "SELECT AVG(stress_score) FROM sleep_health_dataset", Double.class);
-        stats.put("avgStressScore", avgStress != null ? avgStress : 0);
-
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("totalRecords", row.get("total_records"));
+        stats.put("avgSleepDuration", row.get("avg_sleep_duration"));
+        stats.put("avgSleepQuality", row.get("avg_sleep_quality"));
+        stats.put("avgStressScore", row.get("avg_stress_score"));
         return stats;
     }
 

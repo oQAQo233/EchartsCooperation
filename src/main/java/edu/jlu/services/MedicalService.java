@@ -12,16 +12,15 @@ public class MedicalService {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
     public List<Map<String, Object>> getBedtimeBehaviorImpact() {
         String sql = "SELECT occupation AS groupName, " +
-                "  COUNT(*) AS peopleCount, " +
-                "  ROUND(AVG(screen_time_before_bed_mins), 1) AS avgScreen, " +
-                "  ROUND(AVG(sleep_latency_mins), 1) AS avgLatency, " +
-                "  ROUND(AVG(caffeine_mg_before_bed), 1) AS avgCaffeine, " +
-                "  ROUND(AVG(alcohol_units_before_bed), 1) AS avgAlcohol " +
-                "FROM sleep_health_dataset " +
-                "GROUP BY occupation " +
-                "HAVING peopleCount > 5 ";
+                "people_count AS peopleCount, " +
+                "avg_screen AS avgScreen, " +
+                "avg_latency AS avgLatency, " +
+                "avg_caffeine AS avgCaffeine, " +
+                "avg_alcohol AS avgAlcohol " +
+                "FROM agg_bedtime_behavior_impact";
         return jdbcTemplate.queryForList(sql);
     }
 }

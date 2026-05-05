@@ -27,13 +27,12 @@ public class ComparisonService {
     public Map<String, Object> getComparisonData(String dimension) {
         Map<String, Object> result = new HashMap<>();
 
-        String binSql = buildBinSql(dimension);
-        String barSql = String.format(
-            "SELECT %s AS category, COUNT(*) AS count " +
-            "FROM sleep_health_dataset GROUP BY %s ORDER BY category",
-            binSql, binSql
-        );
-        List<Map<String, Object>> barData = jdbcTemplate.queryForList(barSql);
+        // 从聚合表获取 barChart 数据
+        String barSql = "SELECT category, record_count AS count " +
+                "FROM agg_comparison_bar " +
+                "WHERE dimension_type = ? " +
+                "ORDER BY category";
+        List<Map<String, Object>> barData = jdbcTemplate.queryForList(barSql, dimension);
 
         List<String> categories = new ArrayList<>();
         List<Integer> counts = new ArrayList<>();
@@ -48,23 +47,24 @@ public class ComparisonService {
         barChart.put("counts", counts);
         result.put("barChart", barChart);
 
+        // 从聚合表获取各指标均值
         Map<String, List<Double>> metricAverages = new HashMap<>();
         Map<String, Double> metricMaxValues = new HashMap<>();
-        
+
         for (String metric : METRICS) {
-            String avgSql = String.format(
-                "SELECT %s AS category, AVG(%s) AS avg_value " +
-                "FROM sleep_health_dataset GROUP BY %s ORDER BY category",
-                binSql, metric, binSql
-            );
-            List<Map<String, Object>> avgData = jdbcTemplate.queryForList(avgSql);
+            String avgSql = "SELECT category, metric_avg " +
+                    "FROM agg_comparison_metrics " +
+                    "WHERE dimension_type = ? AND metric_name = ? " +
+                    "ORDER BY category";
+            List<Map<String, Object>> avgData = jdbcTemplate.queryForList(avgSql, dimension, metric);
             List<Double> values = new ArrayList<>();
             for (Map<String, Object> row : avgData) {
-                Double val = ((Number) row.get("avg_value")).doubleValue();
+                Double val = ((Number) row.get("metric_avg")).doubleValue();
                 values.add(Math.round(val * 100) / 100.0);
             }
             metricAverages.put(metric, values);
-            
+
+            // max值从原始数据查询
             Double maxVal = jdbcTemplate.queryForObject(
                 "SELECT MAX(" + metric + ") FROM sleep_health_dataset", Double.class);
             metricMaxValues.put(metric, maxVal != null ? maxVal : 100.0);
@@ -75,32 +75,5 @@ public class ComparisonService {
         result.put("metricLabels", Arrays.asList(METRIC_LABELS));
 
         return result;
-    }
-
-    private String buildBinSql(String dimension) {
-        switch (dimension) {
-            case "age":
-                return "CASE " +
-                       "  WHEN age < 25 THEN '<25' " +
-                       "  WHEN age < 35 THEN '25-34' " +
-                       "  WHEN age < 45 THEN '35-44' " +
-                       "  WHEN age < 55 THEN '45-54' " +
-                       "  WHEN age < 65 THEN '55-64' " +
-                       "  ELSE '≥65' END";
-            case "gender":
-                return "gender";
-            case "occupation":
-                return "occupation";
-            case "bmi":
-                return "CASE " +
-                       "  WHEN bmi < 18.5 THEN '偏瘦' " +
-                       "  WHEN bmi < 25 THEN '正常' " +
-                       "  WHEN bmi < 30 THEN '超重' " +
-                       "  ELSE '肥胖' END";
-            case "country":
-                return "country";
-            default:
-                throw new IllegalArgumentException("Unknown dimension: " + dimension);
-        }
     }
 }

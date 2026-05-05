@@ -19,7 +19,6 @@ public class HeatmapService {
      */
     private static final Map<String, String> NUMERIC_FIELD_WHITELIST = new HashMap<>();
     static {
-        // 只允许数值列（按你的数据集可增删）
         NUMERIC_FIELD_WHITELIST.put("sleep_duration_hrs", "sleep_duration_hrs");
         NUMERIC_FIELD_WHITELIST.put("sleep_quality_score", "sleep_quality_score");
         NUMERIC_FIELD_WHITELIST.put("stress_score", "stress_score");
@@ -33,40 +32,56 @@ public class HeatmapService {
     }
 
     /**
-     * 兼容保留：原来的默认热力图（睡眠时长 × 睡眠质量）
+     * 从预聚合表获取热力图（睡眠时长 × 睡眠质量）
      */
     public Map<String, Object> getSleepDurationVsQualityHeatmap() {
-        String sql =
-                "SELECT " +
-                        "  FLOOR(sleep_duration_hrs) AS x_bucket, " +
-                        "  CONCAT(FLOOR(sleep_duration_hrs), '-', FLOOR(sleep_duration_hrs) + 1) AS x_label, " +
-                        "  CASE " +
-                        "    WHEN sleep_quality_score <= 3 THEN '1-3' " +
-                        "    WHEN sleep_quality_score <= 5 THEN '4-5' " +
-                        "    WHEN sleep_quality_score <= 7 THEN '6-7' " +
-                        "    ELSE '8-10' END AS y_label, " +
-                        "  COUNT(*) AS value " +
-                        "FROM sleep_health_dataset " +
-                        "WHERE sleep_duration_hrs IS NOT NULL AND sleep_quality_score IS NOT NULL " +
-                        "GROUP BY x_bucket, x_label, y_label " +
-                        "ORDER BY x_bucket ASC, y_label ASC";
+        String sql = "SELECT duration_bucket, quality_bucket, record_count AS value " +
+                "FROM agg_heatmap_duration_quality " +
+                "ORDER BY duration_bucket ASC, quality_bucket ASC";
+
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
 
         List<String> yLabels = Arrays.asList("1-3", "4-5", "6-7", "8-10");
-        return buildHeatmapDynamicX("睡眠时长 × 睡眠质量（人数）", sql, "x_label", yLabels, "y_label");
+
+        // 动态构建 xLabels
+        Map<String, Integer> xLabelToIndex = new LinkedHashMap<>();
+        for (Map<String, Object> r : rows) {
+            int bucket = ((Number) r.get("duration_bucket")).intValue();
+            String xLabel = bucket + "-" + (bucket + 1);
+            xLabelToIndex.putIfAbsent(xLabel, xLabelToIndex.size());
+        }
+        List<String> xLabels = new ArrayList<>(xLabelToIndex.keySet());
+
+        List<List<Object>> data = new ArrayList<>();
+        for (Map<String, Object> r : rows) {
+            int bucket = ((Number) r.get("duration_bucket")).intValue();
+            String xLabel = bucket + "-" + (bucket + 1);
+            String yLabel = String.valueOf(r.get("quality_bucket"));
+            Number value = (Number) r.get("value");
+
+            Integer xIndex = xLabelToIndex.get(xLabel);
+            int yIndex = yLabels.indexOf(yLabel);
+            if (xIndex == null || yIndex < 0) continue;
+
+            data.add(Arrays.asList(xIndex, yIndex, value.intValue()));
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("title", "睡眠时长 × 睡眠质量（人数）");
+        result.put("xLabels", xLabels);
+        result.put("yLabels", yLabels);
+        result.put("data", data);
+        return result;
     }
 
     /**
-     * 新增：range 分桶热力图（细化分桶用）
-     *
-     * 分桶区间：左闭右开 [start, end)
-     * 超出范围：直接过滤（2A）
+     * 动态范围热力图 - 保留动态SQL因为参数是动态的
      */
     public Map<String, Object> getRangeHeatmap(
             String xField, String yField,
             double xStart, double xEnd, double xStep,
             double yStart, double yEnd, double yStep,
-            String title
-    ) {
+            String title) {
         validateRangeParams("x", xStart, xEnd, xStep);
         validateRangeParams("y", yStart, yEnd, yStep);
 
@@ -79,19 +94,17 @@ public class HeatmapService {
         List<String> xLabels = buildRangeLabels(xStart, xStep, xBins);
         List<String> yLabels = buildRangeLabels(yStart, yStep, yBins);
 
-        String sql =
-                "SELECT " +
-                        "  FLOOR((" + xCol + " - ?) / ?) AS x_idx, " +
-                        "  FLOOR((" + yCol + " - ?) / ?) AS y_idx, " +
-                        "  COUNT(*) AS value " +
-                        "FROM sleep_health_dataset " +
-                        "WHERE " + xCol + " IS NOT NULL AND " + yCol + " IS NOT NULL " +
-                        "  AND " + xCol + " >= ? AND " + xCol + " < ? " +
-                        "  AND " + yCol + " >= ? AND " + yCol + " < ? " +
-                        "GROUP BY x_idx, y_idx " +
-                        "ORDER BY x_idx, y_idx";
+        String sql = "SELECT " +
+                "  FLOOR((" + xCol + " - ?) / ?) AS x_idx, " +
+                "  FLOOR((" + yCol + " - ?) / ?) AS y_idx, " +
+                "  COUNT(*) AS value " +
+                "FROM sleep_health_dataset " +
+                "WHERE " + xCol + " IS NOT NULL AND " + yCol + " IS NOT NULL " +
+                "  AND " + xCol + " >= ? AND " + xCol + " < ? " +
+                "  AND " + yCol + " >= ? AND " + yCol + " < ? " +
+                "GROUP BY x_idx, y_idx ORDER BY x_idx, y_idx";
 
-        Object[] params = new Object[] {
+        Object[] params = {
                 xStart, xStep,
                 yStart, yStep,
                 xStart, xEnd,
@@ -104,7 +117,7 @@ public class HeatmapService {
         for (Map<String, Object> r : rows) {
             Number xiN = (Number) r.get("x_idx");
             Number yiN = (Number) r.get("y_idx");
-            Number vN  = (Number) r.get("value");
+            Number vN = (Number) r.get("value");
             if (xiN == null || yiN == null || vN == null) continue;
 
             int xi = xiN.intValue();
@@ -138,7 +151,7 @@ public class HeatmapService {
         }
 
         double bins = Math.ceil((end - start) / step);
-        if (bins > 200) { // 保护阈值：避免 step 太小导致 bins 巨大
+        if (bins > 200) {
             throw new IllegalArgumentException(axis + " 分桶数量过大(" + (int) bins + ")，请增大 step 或缩小范围");
         }
     }
@@ -165,49 +178,8 @@ public class HeatmapService {
         if (Math.abs(v - Math.round(v)) < 1e-9) {
             return String.valueOf((long) Math.round(v));
         }
-        // 最多 2 位小数，去掉尾随 0
         String s = String.format(java.util.Locale.US, "%.2f", v);
         s = s.replaceAll("0+$", "").replaceAll("\\.$", "");
         return s;
-    }
-
-    /**
-     * 你原来那套：xLabels 动态提取（按 SQL 返回顺序去重），yLabels 固定。
-     */
-    private Map<String, Object> buildHeatmapDynamicX(
-            String title,
-            String sql,
-            String xLabelKey,
-            List<String> yLabels,
-            String yLabelKey
-    ) {
-        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
-
-        Map<String, Integer> xLabelToIndex = new LinkedHashMap<>();
-        for (Map<String, Object> r : rows) {
-            String xLabel = String.valueOf(r.get(xLabelKey));
-            xLabelToIndex.putIfAbsent(xLabel, xLabelToIndex.size());
-        }
-        List<String> xLabels = new ArrayList<>(xLabelToIndex.keySet());
-
-        List<List<Object>> data = new ArrayList<>();
-        for (Map<String, Object> r : rows) {
-            String xLabel = String.valueOf(r.get(xLabelKey));
-            String yLabel = String.valueOf(r.get(yLabelKey));
-            Number value = (Number) r.get("value");
-
-            Integer xIndex = xLabelToIndex.get(xLabel);
-            int yIndex = yLabels.indexOf(yLabel);
-            if (xIndex == null || yIndex < 0) continue;
-
-            data.add(Arrays.asList(xIndex, yIndex, value.intValue()));
-        }
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("title", title);
-        result.put("xLabels", xLabels);
-        result.put("yLabels", yLabels);
-        result.put("data", data);
-        return result;
     }
 }

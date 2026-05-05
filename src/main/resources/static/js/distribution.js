@@ -1,5 +1,5 @@
 const chartTheme = {
-    color: ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899'],
+    color: ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#14b8a6', '#a855f7', '#3b82f6'],
     backgroundColor: 'transparent',
     textStyle: {
         fontFamily: 'Segoe UI, system-ui, sans-serif'
@@ -10,7 +10,10 @@ if (echarts) {
     echarts.registerTheme('sleepTheme', chartTheme);
 }
 
-const COLORS = ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899'];
+// 内圈颜色
+const INNER_COLORS = ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
+// 外圈颜色（与内圈不重复）
+const OUTER_COLORS = ['#f97316', '#14b8a6', '#a855f7', '#3b82f6', '#fb923c', '#2dd4bf', '#c084fc', '#60a5fa'];
 
 let distributionChart;
 let draggedBarChart;
@@ -218,7 +221,7 @@ function buildOuterItems(outerData, targetInnerName) {
                 name: outerName,
                 value: item.value,
                 inner_name: item.inner_name,
-                itemStyle: { color: COLORS[colorIdx % COLORS.length] }
+                itemStyle: { color: OUTER_COLORS[colorIdx % OUTER_COLORS.length] }
             };
         });
 }
@@ -232,7 +235,7 @@ function updateDistributionChart(innerData, outerData) {
         return {
             name: item.name,
             value: item.value,
-            itemStyle: { color: COLORS[idx % COLORS.length] }
+            itemStyle: { color: INNER_COLORS[idx % INNER_COLORS.length] }
         };
     });
 

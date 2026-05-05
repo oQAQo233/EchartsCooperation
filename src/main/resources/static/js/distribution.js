@@ -24,8 +24,9 @@ let selectedInnerName = null;
 const DragState = {
     isDragging: false,
     dragging: null,
-    barData: {},
-    legendHiddenData: {}  // 记录被图例隐藏的数据 { key: { innerName, outerName, value, color } }
+    barData: {},           // { key: { innerName, outerName, value, color } }
+    barOrder: [],          // 记录拖拽顺序，确保柱状图按拖拽顺序显示
+    legendHiddenData: {}   // 记录被图例隐藏的数据 { key: { innerName, outerName, value, color } }
 };
 
 const INNER_LABELS = {
@@ -68,6 +69,7 @@ function initDistributionPage() {
         $(this).addClass('active');
         // 切换内圈时清空 bar 数据
         DragState.barData = {};
+        DragState.barOrder = [];
         DragState.legendHiddenData = {};
         currentLegendSelected = {};
         loadDistributionData();
@@ -79,6 +81,7 @@ function initDistributionPage() {
         $(this).addClass('active');
         // 切换外圈时清空 bar 数据
         DragState.barData = {};
+        DragState.barOrder = [];
         DragState.legendHiddenData = {};
         currentLegendSelected = {};
         loadDistributionData();
@@ -239,34 +242,52 @@ function updateDistributionChart(innerData, outerData) {
 }
 
 function getSectorInfo(offsetX, offsetY, params) {
-    // 使用 params.target 检测扇形元素
     const target = params && params.target;
 
     if (target && target.type === 'sector') {
-        // 从扇形元素获取数据
         const option = distributionChart.getOption();
         const seriesIndex = target.seriesIndex;
         const dataIndex = target.dataIndex;
 
         if (seriesIndex !== undefined && dataIndex !== undefined) {
-            const seriesType = seriesIndex === 0 ? 'inner' : 'outer';
-            const data = option.series[seriesIndex].data[dataIndex];
+            const innerData = option.series[0].data;
+            const outerData = option.series[1].data;
+            const targetData = seriesIndex === 0 ? innerData : outerData;
 
-            if (data && data.value > 0) {
+            // 创建可见扇形索引映射数组
+            const lst = [];
+            for (let i = 0; i < targetData.length; i++) {
+                const d = targetData[i];
+                if (d) {
+                    const legendName = seriesIndex === 0 ? d.name : (d.inner_name || selectedInnerName) + ' ' + d.name;
+                    if (currentLegendSelected[legendName] !== false) {
+                        lst.push(i);
+                    }
+                }
+            }
+
+            // lst[dataIndex] 即为目标扇形的实际索引
+            const targetIndex = lst[dataIndex];
+            if (targetIndex === undefined) {
+                return null;
+            }
+
+            const data = targetData[targetIndex];
+            if (data) {
                 return {
-                    type: seriesType,
-                    dataIndex: dataIndex,
+                    type: seriesIndex === 0 ? 'inner' : 'outer',
+                    dataIndex: targetIndex,
                     name: data.name,
                     value: data.value,
-                    color: data.itemStyle ? data.itemStyle.color : COLORS[dataIndex % COLORS.length],
+                    color: data.itemStyle ? data.itemStyle.color : (seriesIndex === 0 ? INNER_COLORS[targetIndex % INNER_COLORS.length] : OUTER_COLORS[targetIndex % OUTER_COLORS.length]),
                     innerName: data.inner_name || data.name
                 };
             }
         }
     }
 
-    // 回退：使用旧的角度计算方法
-    return getSectorByAngle(offsetX, offsetY);
+    // return getSectorByAngle(offsetX, offsetY);
+    return true; // 临时返回，允许拖拽测试
 }
 
 function getRectInfo(params) {
@@ -295,10 +316,6 @@ function getRectInfo(params) {
 }
 
 function getSectorByAngle(x, y) {
-    const option = distributionChart.getOption();
-    const innerData = option.series[0].data;
-    const outerData = option.series[1].data;
-
     const chartWidth = distributionChart.getWidth();
     const chartHeight = distributionChart.getHeight();
     const centerX = chartWidth * 0.4;
@@ -318,18 +335,18 @@ function getSectorByAngle(x, y) {
 
     if (distance >= 0 && distance <= innerRadiusEnd) {
         let cumAngle = 0;
-        const totalValue = innerData.reduce((s, i) => s + i.value, 0);
+        const totalValue = originalInnerData.reduce((s, i) => s + i.value, 0);
         if (totalValue === 0) return null;
 
-        for (let i = 0; i < innerData.length; i++) {
-            const itemAngle = (innerData[i].value / totalValue) * 2 * Math.PI;
+        for (let i = 0; i < originalInnerData.length; i++) {
+            const itemAngle = (originalInnerData[i].value / totalValue) * 2 * Math.PI;
             if (angle >= cumAngle && angle < cumAngle + itemAngle) {
                 return {
                     type: 'inner',
                     dataIndex: i,
-                    name: innerData[i].name,
-                    value: innerData[i].value,
-                    color: innerData[i].itemStyle.color
+                    name: originalInnerData[i].name,
+                    value: originalInnerData[i].value,
+                    color: INNER_COLORS[i % INNER_COLORS.length]
                 };
             }
             cumAngle += itemAngle;
@@ -351,7 +368,7 @@ function getSectorByAngle(x, y) {
                     dataIndex: i,
                     name: currentOuter[i].name,
                     value: currentOuter[i].value,
-                    color: currentOuter[i].itemStyle.color,
+                    color: currentOuter[i].itemStyle ? currentOuter[i].itemStyle.color : OUTER_COLORS[i % OUTER_COLORS.length],
                     innerName: currentOuter[i].inner_name
                 };
             }
@@ -367,70 +384,75 @@ function handleLegendToggle(selected) {
     const innerData = option.series[0].data;
     const outerData = option.series[1].data;
 
-    // 对比上次状态，找出变化
-    for (let i = 0; i < innerData.length; i++) {
-        const name = innerData[i].name;
-        const wasSelected = currentLegendSelected[name] !== false;
-        const isSelected = selected[name] !== false;
+    // 获取所有图例名称
+    const allLegendNames = new Set();
+    innerData.forEach(d => allLegendNames.add(d.name));
+    outerData.forEach(d => {
+        const fullName = (d.inner_name || selectedInnerName) + ' ' + d.name;
+        allLegendNames.add(fullName);
+    });
 
-        if (!wasSelected && isSelected) {
-            // 图例被选中显示 - 从 barData 移除
-            const barKey = name;
-            if (DragState.barData[barKey]) {
-                delete DragState.barData[barKey];
+    // 找出真正变化的图例（之前存在记录的）
+    const changedLegends = [];
+    for (const name of allLegendNames) {
+        if (name in currentLegendSelected) {
+            const wasSelected = currentLegendSelected[name] !== false;
+            const isSelected = selected[name] !== false;
+            if (wasSelected !== isSelected) {
+                changedLegends.push({ name, wasSelected, isSelected });
             }
-            delete DragState.legendHiddenData[barKey];
-        } else if (wasSelected && !isSelected) {
-            // 图例被取消隐藏 - 添加到 barData
-            const barKey = name;
-            DragState.barData[barKey] = {
-                innerName: name,
-                outerName: null,
-                value: innerData[i].value,
-                color: innerData[i].itemStyle ? innerData[i].itemStyle.color : INNER_COLORS[i % INNER_COLORS.length]
-            };
-            DragState.legendHiddenData[barKey] = {
-                innerName: name,
-                outerName: null,
-                value: innerData[i].value,
-                color: innerData[i].itemStyle ? innerData[i].itemStyle.color : INNER_COLORS[i % INNER_COLORS.length]
-            };
         }
     }
 
-    // 检查外层图例
-    for (let i = 0; i < outerData.length; i++) {
-        const name = outerData[i].name;
-        const fullName = (outerData[i].inner_name || selectedInnerName) + ' ' + name;
-        const wasSelected = currentLegendSelected[fullName] !== false;
-        const isSelected = selected[fullName] !== false;
+    // 处理变化的图例
+    for (const change of changedLegends) {
+        const { name, wasSelected, isSelected } = change;
 
         if (!wasSelected && isSelected) {
             // 图例被选中显示 - 从 barData 移除
-            const barKey = fullName;
-            if (DragState.barData[barKey]) {
-                delete DragState.barData[barKey];
+            if (DragState.barData[name]) {
+                delete DragState.barData[name];
+                DragState.barOrder = DragState.barOrder.filter(k => k !== name);
             }
-            delete DragState.legendHiddenData[barKey];
+            delete DragState.legendHiddenData[name];
         } else if (wasSelected && !isSelected) {
             // 图例被取消隐藏 - 添加到 barData
-            const barKey = fullName;
-            DragState.barData[barKey] = {
-                innerName: outerData[i].inner_name || selectedInnerName,
-                outerName: name,
-                value: outerData[i].value,
-                color: outerData[i].itemStyle ? outerData[i].itemStyle.color : OUTER_COLORS[i % OUTER_COLORS.length]
-            };
-            DragState.legendHiddenData[barKey] = {
-                innerName: outerData[i].inner_name || selectedInnerName,
-                outerName: name,
-                value: outerData[i].value,
-                color: outerData[i].itemStyle ? outerData[i].itemStyle.color : OUTER_COLORS[i % OUTER_COLORS.length]
-            };
+            // 查找对应的原始数据
+            const innerItem = innerData.find(d => d.name === name);
+            if (innerItem) {
+                DragState.barData[name] = {
+                    innerName: name,
+                    outerName: null,
+                    value: innerItem.value,
+                    color: innerItem.itemStyle ? innerItem.itemStyle.color : INNER_COLORS[innerData.indexOf(innerItem) % INNER_COLORS.length]
+                };
+                DragState.legendHiddenData[name] = { ...DragState.barData[name] };
+                if (!DragState.barOrder.includes(name)) {
+                    DragState.barOrder.push(name);
+                }
+            } else {
+                // 外圈数据
+                const outerItem = outerData.find(d => {
+                    const fullName = (d.inner_name || selectedInnerName) + ' ' + d.name;
+                    return fullName === name;
+                });
+                if (outerItem) {
+                    DragState.barData[name] = {
+                        innerName: outerItem.inner_name || selectedInnerName,
+                        outerName: outerItem.name,
+                        value: outerItem.value,
+                        color: outerItem.itemStyle ? outerItem.itemStyle.color : OUTER_COLORS[outerData.indexOf(outerItem) % OUTER_COLORS.length]
+                    };
+                    DragState.legendHiddenData[name] = { ...DragState.barData[name] };
+                    if (!DragState.barOrder.includes(name)) {
+                        DragState.barOrder.push(name);
+                    }
+                }
+            }
         }
     }
 
-    // 更新当前状态
+    // 更新当前状态 - 同步所有图例状态
     currentLegendSelected = { ...selected };
 
     updateDraggedBarChart();
@@ -574,10 +596,6 @@ function onBarGlobalMouseUp(params) {
 }
 
 function transferToBar(sector) {
-    // 获取当前图例状态
-    const option = distributionChart.getOption();
-    const legendSelect = option.legend[0].selected;
-
     if (sector.type === 'outer') {
         const barKey = sector.innerName + ' ' + sector.name;
         DragState.barData[barKey] = {
@@ -592,6 +610,10 @@ function transferToBar(sector) {
             value: sector.value,
             color: sector.color
         };
+        // 记录顺序
+        if (!DragState.barOrder.includes(barKey)) {
+            DragState.barOrder.push(barKey);
+        }
 
         // 设置图例为隐藏
         distributionChart.dispatchAction({
@@ -614,6 +636,10 @@ function transferToBar(sector) {
             value: sector.value,
             color: sector.color
         };
+        // 记录顺序
+        if (!DragState.barOrder.includes(barKey)) {
+            DragState.barOrder.push(barKey);
+        }
 
         // 设置图例为隐藏
         distributionChart.dispatchAction({
@@ -627,8 +653,8 @@ function transferToBar(sector) {
 }
 
 function updateDraggedBarChart() {
-    const barKeys = Object.keys(DragState.barData);
-    const barItems = barKeys.map(function(key) {
+    // 按拖拽顺序显示
+    const barItems = DragState.barOrder.map(function(key) {
         const item = DragState.barData[key];
         return {
             name: key,
@@ -691,6 +717,8 @@ function restoreFromBar(barInfo, targetSector) {
 
     delete DragState.barData[barKey];
     delete DragState.legendHiddenData[barKey];
+    // 从顺序数组中移除
+    DragState.barOrder = DragState.barOrder.filter(k => k !== barKey);
 
     // 恢复图例为选中状态
     if (barEntry.outerName) {

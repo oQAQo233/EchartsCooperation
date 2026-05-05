@@ -13,7 +13,7 @@ public class DistributionService {
     private JdbcTemplate jdbcTemplate;
 
     public Map<String, Object> getDistributionData(String innerType, String outerType) {
-        String tableName = "distribution_" + innerType + "_" + outerType;
+        String tableName = "agg_distribution_" + innerType + "_" + outerType;
         String sql = "SELECT inner_bucket AS inner_name, outer_bucket AS outer_name, record_count AS value " +
                 "FROM " + tableName + " " +
                 "ORDER BY inner_name, outer_name";

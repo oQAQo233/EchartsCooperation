@@ -52,7 +52,7 @@ public class SleepHealthService {
         String[] ALLOWED_COLUMNS = {
             "person_id", "age", "gender", "occupation",
             "sleep_duration_hrs", "sleep_quality_score", "stress_score",
-            "chronotype", "sleep_disorder_risk", "country"
+            "chronotype", "agg_sleep_disorder_risk", "country"
         };
 
         String searchClause = "";
@@ -61,7 +61,7 @@ public class SleepHealthService {
             searchClause = "AND (" +
                 "person_id LIKE ? OR age LIKE ? OR gender LIKE ? OR occupation LIKE ? OR " +
                 "sleep_duration_hrs LIKE ? OR sleep_quality_score LIKE ? OR stress_score LIKE ? OR " +
-                "chronotype LIKE ? OR sleep_disorder_risk LIKE ? OR country LIKE ?)";
+                "chronotype LIKE ? OR agg_sleep_disorder_risk LIKE ? OR country LIKE ?)";
             for (int i = 0; i < 10; i++) {
                 searchParams.add("%" + search.trim() + "%");
             }
@@ -96,25 +96,25 @@ public class SleepHealthService {
 
     public List<Map<String, Object>> getAgeDistribution() {
         String sql = "SELECT age_group AS age_group, record_count AS count " +
-                "FROM age_distribution ORDER BY age_group";
+                "FROM agg_age_distribution ORDER BY age_group";
         return jdbcTemplate.queryForList(sql);
     }
 
     public List<Map<String, Object>> getSleepDisorderRiskDistribution() {
         String sql = "SELECT risk_level AS name, record_count AS value " +
-                "FROM sleep_disorder_risk";
+                "FROM agg_sleep_disorder_risk";
         return jdbcTemplate.queryForList(sql);
     }
 
     public List<Map<String, Object>> getSleepDurationByOccupation() {
         String sql = "SELECT occupation AS name, avg_duration AS value " +
-                "FROM sleep_duration_by_occupation ORDER BY value DESC";
+                "FROM agg_sleep_duration_by_occupation ORDER BY value DESC";
         return jdbcTemplate.queryForList(sql);
     }
 
     public List<Map<String, Object>> getSleepQualityByChronotype() {
         String sql = "SELECT chronotype AS name, avg_quality AS value " +
-                "FROM sleep_quality_by_chronotype";
+                "FROM agg_sleep_quality_by_chronotype";
         return jdbcTemplate.queryForList(sql);
     }
 
@@ -126,13 +126,13 @@ public class SleepHealthService {
 
     public List<Map<String, Object>> getStressScoreDistribution() {
         String sql = "SELECT stress_group AS name, record_count AS value " +
-                "FROM stress_distribution ORDER BY name";
+                "FROM agg_stress_distribution ORDER BY name";
         return jdbcTemplate.queryForList(sql);
     }
 
     public Map<String, Object> getDashboardStats() {
         String sql = "SELECT total_records, avg_sleep_duration, avg_sleep_quality, avg_stress_score " +
-                "FROM dashboard_stats WHERE id = 1";
+                "FROM agg_dashboard_stats WHERE id = 1";
         Map<String, Object> row = jdbcTemplate.queryForMap(sql);
 
         Map<String, Object> stats = new HashMap<>();
@@ -177,7 +177,7 @@ public class SleepHealthService {
             record.setSeason(rs.getString("season"));
             record.setDayType(rs.getString("day_type"));
             record.setCognitivePerformanceScore(rs.getDouble("cognitive_performance_score"));
-            record.setSleepDisorderRisk(rs.getString("sleep_disorder_risk"));
+            record.setSleepDisorderRisk(rs.getString("agg_sleep_disorder_risk"));
             record.setFeltRested(rs.getInt("felt_rested"));
             return record;
         }

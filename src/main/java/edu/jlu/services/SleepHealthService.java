@@ -21,14 +21,14 @@ public class SleepHealthService {
 
     public List<SleepHealthRecord> getAllRecords() {
         return jdbcTemplate.query(
-            "SELECT * FROM sleep_table LIMIT 50",
+            "SELECT * FROM sub_sleep_health LIMIT 50",
             new SleepHealthRecordRowMapper()
         );
     }
 
     public SleepHealthRecord getRecordById(Integer personId) {
         List<SleepHealthRecord> results = jdbcTemplate.query(
-            "SELECT * FROM sleep_table WHERE person_id = ?",
+            "SELECT * FROM sub_sleep_health WHERE person_id = ?",
             new SleepHealthRecordRowMapper(),
             personId
         );
@@ -37,7 +37,7 @@ public class SleepHealthService {
 
     public int getRecordCount() {
         Integer count = jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM sleep_table",
+            "SELECT COUNT(*) FROM sub_sleep_health",
             Integer.class
         );
         return count != null ? count : 0;
@@ -73,7 +73,7 @@ public class SleepHealthService {
             orderClause = "ORDER BY " + ALLOWED_COLUMNS[orderColumn] + " " + dir;
         }
 
-        String dataSql = "SELECT * FROM sleep_table WHERE 1=1 "
+        String dataSql = "SELECT * FROM sub_sleep_health WHERE 1=1 "
                        + searchClause + " " + orderClause + " LIMIT ? OFFSET ?";
         List<Object> dataParams = new ArrayList<>(searchParams);
         dataParams.add(length);
@@ -81,7 +81,7 @@ public class SleepHealthService {
         List<SleepHealthRecord> records = jdbcTemplate.query(dataSql,
             new SleepHealthRecordRowMapper(), dataParams.toArray());
 
-        String countSql = "SELECT COUNT(*) FROM sleep_table WHERE 1=1 " + searchClause;
+        String countSql = "SELECT COUNT(*) FROM sub_sleep_health WHERE 1=1 " + searchClause;
         Integer filteredCount = jdbcTemplate.queryForObject(countSql, Integer.class,
             searchParams.toArray());
 
@@ -94,7 +94,7 @@ public class SleepHealthService {
 
     public double getAverageSleepDuration() {
         Double avg = jdbcTemplate.queryForObject(
-            "SELECT AVG(sleep_duration_hrs) FROM sleep_table",
+            "SELECT AVG(sleep_duration_hrs) FROM sub_sleep_health",
             Double.class
         );
         return avg != null ? avg : 0.0;
@@ -112,7 +112,7 @@ public class SleepHealthService {
             "  WHEN age >= 55 AND age < 65 THEN '55-64' " +
             "  ELSE '65+' END AS age_group, " +
             "COUNT(*) AS count " +
-            "FROM sleep_table " +
+            "FROM sub_sleep_health " +
             "GROUP BY age_group " +
             "ORDER BY age_group";
         return jdbcTemplate.queryForList(sql);
@@ -120,25 +120,25 @@ public class SleepHealthService {
 
     public List<Map<String, Object>> getSleepDisorderRiskDistribution() {
         String sql = "SELECT sleep_disorder_risk AS name, COUNT(*) AS value " +
-            "FROM sleep_table GROUP BY sleep_disorder_risk";
+            "FROM sub_sleep_health GROUP BY sleep_disorder_risk";
         return jdbcTemplate.queryForList(sql);
     }
 
     public List<Map<String, Object>> getSleepDurationByOccupation() {
         String sql = "SELECT occupation AS name, AVG(sleep_duration_hrs) AS value " +
-            "FROM sleep_table GROUP BY occupation ORDER BY value DESC LIMIT 10";
+            "FROM sub_sleep_health GROUP BY occupation ORDER BY value DESC LIMIT 10";
         return jdbcTemplate.queryForList(sql);
     }
 
     public List<Map<String, Object>> getSleepQualityByChronotype() {
         String sql = "SELECT chronotype AS name, AVG(sleep_quality_score) AS value " +
-            "FROM sleep_table GROUP BY chronotype";
+            "FROM sub_sleep_health GROUP BY chronotype";
         return jdbcTemplate.queryForList(sql);
     }
 
     public List<Map<String, Object>> getSleepDurationVsQuality() {
         String sql = "SELECT sleep_duration_hrs AS x, sleep_quality_score AS y " +
-            "FROM sleep_table LIMIT 100";
+            "FROM sub_sleep_health LIMIT 100";
         return jdbcTemplate.queryForList(sql);
     }
 
@@ -150,7 +150,7 @@ public class SleepHealthService {
             "  WHEN stress_score <= 7 THEN '6-7' " +
             "  ELSE '8-10' END AS name, " +
             "COUNT(*) AS value " +
-            "FROM sleep_table GROUP BY name ORDER BY name";
+            "FROM sub_sleep_health GROUP BY name ORDER BY name";
         return jdbcTemplate.queryForList(sql);
     }
 
@@ -160,11 +160,11 @@ public class SleepHealthService {
         stats.put("avgSleepDuration", getAverageSleepDuration());
 
         Double avgQuality = jdbcTemplate.queryForObject(
-            "SELECT AVG(sleep_quality_score) FROM sleep_table", Double.class);
+            "SELECT AVG(sleep_quality_score) FROM sub_sleep_health", Double.class);
         stats.put("avgSleepQuality", avgQuality != null ? avgQuality : 0);
 
         Double avgStress = jdbcTemplate.queryForObject(
-            "SELECT AVG(stress_score) FROM sleep_table", Double.class);
+            "SELECT AVG(stress_score) FROM sub_sleep_health", Double.class);
         stats.put("avgStressScore", avgStress != null ? avgStress : 0);
 
         return stats;

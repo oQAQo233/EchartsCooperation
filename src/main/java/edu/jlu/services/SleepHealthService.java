@@ -96,25 +96,25 @@ public class SleepHealthService {
 
     public List<Map<String, Object>> getAgeDistribution() {
         String sql = "SELECT age_group AS age_group, record_count AS count " +
-                "FROM agg_age_distribution ORDER BY age_group";
+                "FROM age_distribution ORDER BY age_group";
         return jdbcTemplate.queryForList(sql);
     }
 
     public List<Map<String, Object>> getSleepDisorderRiskDistribution() {
         String sql = "SELECT risk_level AS name, record_count AS value " +
-                "FROM agg_sleep_disorder_risk";
+                "FROM sleep_disorder_risk";
         return jdbcTemplate.queryForList(sql);
     }
 
     public List<Map<String, Object>> getSleepDurationByOccupation() {
         String sql = "SELECT occupation AS name, avg_duration AS value " +
-                "FROM agg_sleep_duration_by_occupation ORDER BY value DESC";
+                "FROM sleep_duration_by_occupation ORDER BY value DESC";
         return jdbcTemplate.queryForList(sql);
     }
 
     public List<Map<String, Object>> getSleepQualityByChronotype() {
         String sql = "SELECT chronotype AS name, avg_quality AS value " +
-                "FROM agg_sleep_quality_by_chronotype";
+                "FROM sleep_quality_by_chronotype";
         return jdbcTemplate.queryForList(sql);
     }
 
@@ -126,13 +126,13 @@ public class SleepHealthService {
 
     public List<Map<String, Object>> getStressScoreDistribution() {
         String sql = "SELECT stress_group AS name, record_count AS value " +
-                "FROM agg_stress_distribution ORDER BY name";
+                "FROM stress_distribution ORDER BY name";
         return jdbcTemplate.queryForList(sql);
     }
 
     public Map<String, Object> getDashboardStats() {
         String sql = "SELECT total_records, avg_sleep_duration, avg_sleep_quality, avg_stress_score " +
-                "FROM agg_dashboard_stats WHERE id = 1";
+                "FROM dashboard_stats WHERE id = 1";
         Map<String, Object> row = jdbcTemplate.queryForMap(sql);
 
         Map<String, Object> stats = new HashMap<>();

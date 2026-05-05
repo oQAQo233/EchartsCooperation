@@ -20,7 +20,7 @@ public class MedicalService {
                 "avg_latency AS avgLatency, " +
                 "avg_caffeine AS avgCaffeine, " +
                 "avg_alcohol AS avgAlcohol " +
-                "FROM agg_bedtime_behavior_impact";
+                "FROM bedtime_behavior_impact";
         return jdbcTemplate.queryForList(sql);
     }
 }

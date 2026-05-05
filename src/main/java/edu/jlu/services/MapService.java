@@ -16,7 +16,7 @@ public class MapService {
     public List<Map<String, Object>> getCountryDistribution() {
         String sql = "SELECT country AS name, record_count AS value, " +
             "avg_duration AS avgDuration, avg_quality AS avgQuality " +
-            "FROM agg_country_distribution ORDER BY value DESC";
+            "FROM country_distribution ORDER BY value DESC";
         return jdbcTemplate.queryForList(sql);
     }
 }

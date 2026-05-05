@@ -29,10 +29,9 @@ public class ComparisonService {
 
         // 从聚合表获取 barChart 数据
         String barSql = "SELECT category, record_count AS count " +
-                "FROM agg_comparison_bar " +
-                "WHERE dimension_type = ? " +
+                "FROM comparison_bar_" + dimension + " " +
                 "ORDER BY category";
-        List<Map<String, Object>> barData = jdbcTemplate.queryForList(barSql, dimension);
+        List<Map<String, Object>> barData = jdbcTemplate.queryForList(barSql);
 
         List<String> categories = new ArrayList<>();
         List<Integer> counts = new ArrayList<>();
@@ -53,10 +52,10 @@ public class ComparisonService {
 
         for (String metric : METRICS) {
             String avgSql = "SELECT category, metric_avg " +
-                    "FROM agg_comparison_metrics " +
-                    "WHERE dimension_type = ? AND metric_name = ? " +
+                    "FROM comparison_metrics_" + dimension + " " +
+                    "WHERE metric_name = ? " +
                     "ORDER BY category";
-            List<Map<String, Object>> avgData = jdbcTemplate.queryForList(avgSql, dimension, metric);
+            List<Map<String, Object>> avgData = jdbcTemplate.queryForList(avgSql, metric);
             List<Double> values = new ArrayList<>();
             for (Map<String, Object> row : avgData) {
                 Double val = ((Number) row.get("metric_avg")).doubleValue();

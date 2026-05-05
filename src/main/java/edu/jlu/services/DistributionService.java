@@ -13,13 +13,12 @@ public class DistributionService {
     private JdbcTemplate jdbcTemplate;
 
     public Map<String, Object> getDistributionData(String innerType, String outerType) {
-        // 尝试从聚合表获取数据
+        String tableName = "distribution_" + innerType + "_" + outerType;
         String sql = "SELECT inner_bucket AS inner_name, outer_bucket AS outer_name, record_count AS value " +
-                "FROM agg_distribution " +
-                "WHERE inner_type = ? AND outer_type = ? " +
+                "FROM " + tableName + " " +
                 "ORDER BY inner_name, outer_name";
 
-        List<Map<String, Object>> rawData = jdbcTemplate.queryForList(sql, innerType, outerType);
+        List<Map<String, Object>> rawData = jdbcTemplate.queryForList(sql);
 
         // 如果聚合表没有数据，回退到原始SQL查询
         if (rawData.isEmpty()) {

@@ -36,7 +36,7 @@ public class HeatmapService {
      */
     public Map<String, Object> getSleepDurationVsQualityHeatmap() {
         String sql = "SELECT duration_bucket, quality_bucket, record_count AS value " +
-                "FROM agg_heatmap_duration_quality " +
+                "FROM heatmap_duration_quality " +
                 "ORDER BY duration_bucket ASC, quality_bucket ASC";
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);

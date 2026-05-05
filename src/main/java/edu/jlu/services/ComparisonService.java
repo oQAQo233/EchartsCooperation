@@ -1,5 +1,7 @@
 package edu.jlu.services;
 
+import edu.jlu.models.BarChartData;
+import edu.jlu.models.ComparisonResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -24,13 +26,13 @@ public class ComparisonService {
     };
 
     @Cacheable(value = "comparisonData", key = "#dimension")
-    public Map<String, Object> getComparisonData(String dimension) {
-        Map<String, Object> result = new HashMap<>();
+    public ComparisonResult getComparisonData(String dimension) {
+        ComparisonResult result = new ComparisonResult();
 
         String binSql = buildBinSql(dimension);
         String barSql = String.format(
             "SELECT %s AS category, COUNT(*) AS count " +
-            "FROM sleep_health_dataset GROUP BY %s ORDER BY category",
+            "FROM sub_comparison_data GROUP BY %s ORDER BY category",
             binSql, binSql
         );
         List<Map<String, Object>> barData = jdbcTemplate.queryForList(barSql);
@@ -43,18 +45,18 @@ public class ComparisonService {
             counts.add(((Number) row.get("count")).intValue());
         }
 
-        Map<String, Object> barChart = new HashMap<>();
-        barChart.put("categories", categories);
-        barChart.put("counts", counts);
-        result.put("barChart", barChart);
+        BarChartData barChart = new BarChartData();
+        barChart.setCategories(categories);
+        barChart.setCounts(counts);
+        result.setBarChart(barChart);
 
         Map<String, List<Double>> metricAverages = new HashMap<>();
         Map<String, Double> metricMaxValues = new HashMap<>();
-        
+
         for (String metric : METRICS) {
             String avgSql = String.format(
                 "SELECT %s AS category, AVG(%s) AS avg_value " +
-                "FROM sleep_health_dataset GROUP BY %s ORDER BY category",
+                "FROM sub_comparison_data GROUP BY %s ORDER BY category",
                 binSql, metric, binSql
             );
             List<Map<String, Object>> avgData = jdbcTemplate.queryForList(avgSql);
@@ -64,15 +66,15 @@ public class ComparisonService {
                 values.add(Math.round(val * 100) / 100.0);
             }
             metricAverages.put(metric, values);
-            
+
             Double maxVal = jdbcTemplate.queryForObject(
-                "SELECT MAX(" + metric + ") FROM sleep_health_dataset", Double.class);
+                "SELECT MAX(" + metric + ") FROM sub_comparison_data", Double.class);
             metricMaxValues.put(metric, maxVal != null ? maxVal : 100.0);
         }
-        result.put("metricAverages", metricAverages);
-        result.put("metricMaxValues", metricMaxValues);
-        result.put("categories", categories);
-        result.put("metricLabels", Arrays.asList(METRIC_LABELS));
+        result.setMetricAverages(metricAverages);
+        result.setMetricMaxValues(metricMaxValues);
+        result.setCategories(categories);
+        result.setMetricLabels(Arrays.asList(METRIC_LABELS));
 
         return result;
     }

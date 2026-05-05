@@ -1,13 +1,11 @@
 package edu.jlu.services;
 
+import edu.jlu.models.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 public class DistributionService {
@@ -15,13 +13,14 @@ public class DistributionService {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    public Map<String, Object> getDistributionData(String innerType, String outerType) {
+    public DistributionResult getDistributionData(String innerType, String outerType) {
         String innerBin = buildInnerBinSql(innerType);
         String outerBin = buildOuterBinSql(outerType);
 
         String sql = String.format(
             "SELECT %s AS inner_name, %s AS outer_name, COUNT(*) AS value " +
-            "FROM sleep_health_dataset GROUP BY %s, %s ORDER BY inner_name, outer_name",
+            "FROM sub_distribution_data " +
+            "GROUP BY %s, %s ORDER BY inner_name, outer_name",
             innerBin, outerBin, innerBin, outerBin
         );
 
@@ -35,27 +34,27 @@ public class DistributionService {
             innerCounts.merge(innerName, cnt, Integer::sum);
         }
 
-        List<Map<String, Object>> innerList = new ArrayList<>();
+        List<InnerDistributionItem> innerList = new ArrayList<>();
         for (Map.Entry<String, Integer> e : innerCounts.entrySet()) {
-            Map<String, Object> item = new HashMap<>();
-            item.put("name", e.getKey());
-            item.put("value", e.getValue());
+            InnerDistributionItem item = new InnerDistributionItem();
+            item.setName(e.getKey());
+            item.setValue(e.getValue());
             innerList.add(item);
         }
 
         // outerList: NxM rows with inner_name + outer_name + value
-        List<Map<String, Object>> outerList = new ArrayList<>();
+        List<OuterDistributionItem> outerList = new ArrayList<>();
         for (Map<String, Object> row : rawData) {
-            Map<String, Object> item = new HashMap<>();
-            item.put("inner_name", row.get("inner_name"));
-            item.put("outer_name", row.get("outer_name"));
-            item.put("value", row.get("value"));
+            OuterDistributionItem item = new OuterDistributionItem();
+            item.setInnerName(String.valueOf(row.get("inner_name")));
+            item.setOuterName(String.valueOf(row.get("outer_name")));
+            item.setValue(((Number) row.get("value")).intValue());
             outerList.add(item);
         }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("inner", innerList);
-        result.put("outer", outerList);
+        DistributionResult result = new DistributionResult();
+        result.setInner(innerList);
+        result.setOuter(outerList);
         return result;
     }
 

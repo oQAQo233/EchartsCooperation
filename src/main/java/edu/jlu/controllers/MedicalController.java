@@ -1,5 +1,6 @@
 package edu.jlu.controllers;
 
+import edu.jlu.models.BedtimeBehaviorImpact;
 import edu.jlu.services.MedicalService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -8,13 +9,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.util.List;
-import java.util.Map;
 
 @Controller
 @RequestMapping("/sleep")
 public class MedicalController {
 
-    // 1. 注入你刚才写好的 Service
     @Autowired
     private MedicalService medicalService;
 
@@ -22,10 +21,10 @@ public class MedicalController {
     public String medicalBehaviorPage() {
         return "pages/medical-behavior";
     }
+
     @GetMapping("/api/chart/behavior")
     @ResponseBody
-    public List<Map<String, Object>> getBehaviorImpactData() {
+    public List<BedtimeBehaviorImpact> getBehaviorImpactData() {
         return medicalService.getBedtimeBehaviorImpact();
     }
-
 }

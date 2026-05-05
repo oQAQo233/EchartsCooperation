@@ -1,5 +1,6 @@
 package edu.jlu.controllers;
 
+import edu.jlu.models.CountryDistribution;
 import edu.jlu.services.MapService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
@@ -8,7 +9,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.util.List;
-import java.util.Map;
 
 @Controller
 @RequestMapping("/sleep/map")
@@ -24,7 +24,7 @@ public class MapController {
 
     @GetMapping("/api/country-data")
     @ResponseBody
-    public List<Map<String, Object>> getCountryData() {
+    public List<CountryDistribution> getCountryData() {
         return mapService.getCountryDistribution();
     }
 }

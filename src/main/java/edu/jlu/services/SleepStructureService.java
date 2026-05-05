@@ -13,7 +13,7 @@ public class SleepStructureService {
     private JdbcTemplate jdbcTemplate;
 
     public Map<String, Object> getAgeRange() {
-        String sql = "SELECT MIN(age) as minAge, MAX(age) as maxAge FROM sleep_structure";
+        String sql = "SELECT MIN(age) as minAge, MAX(age) as maxAge FROM sub_sleep_structure";
         Map<String, Object> result = jdbcTemplate.queryForMap(sql);
         Map<String, Object> ageRange = new HashMap<>();
         ageRange.put("minAge", ((Number) result.get("minAge")).intValue());
@@ -27,9 +27,9 @@ public class SleepStructureService {
         // 性别数据，按 男 -> 女 -> 其他 的顺序
         String genderSql = "SELECT gender, AVG(sleep_duration_hrs) as avg_duration, " +
                 "AVG(rem_percentage) as avg_rem, AVG(deep_sleep_percentage) as avg_deep, " +
-                "AVG(light_sleep_percentage) as avg_light, AVG(sleep_quality_score) as avg_quality, " +
+                "AVG(sleep_quality_score) as avg_quality, " +
                 "AVG(wake_episodes_per_night) as avg_wake_episodes " +
-                "FROM sleep_structure WHERE age BETWEEN ? AND ? GROUP BY gender " +
+                "FROM sub_sleep_structure WHERE age BETWEEN ? AND ? GROUP BY gender " +
                 "ORDER BY CASE gender " +
                 "WHEN 'male' THEN 1 " +
                 "WHEN 'female' THEN 2 " +
@@ -40,9 +40,9 @@ public class SleepStructureService {
         // 睡眠类型数据，按 早鸟型(Morning) -> 中间型(Neutral) -> 夜猫子型(Evening) 的顺序
         String chronotypeSql = "SELECT chronotype, AVG(sleep_duration_hrs) as avg_duration, " +
                 "AVG(rem_percentage) as avg_rem, AVG(deep_sleep_percentage) as avg_deep, " +
-                "AVG(light_sleep_percentage) as avg_light, AVG(sleep_quality_score) as avg_quality, " +
+                "AVG(sleep_quality_score) as avg_quality, " +
                 "AVG(wake_episodes_per_night) as avg_wake_episodes " +
-                "FROM sleep_structure WHERE age BETWEEN ? AND ? GROUP BY chronotype " +
+                "FROM sub_sleep_structure WHERE age BETWEEN ? AND ? GROUP BY chronotype " +
                 "ORDER BY CASE chronotype " +
                 "WHEN 'Morning' THEN 1 " +
                 "WHEN 'Neutral' THEN 2 " +
@@ -53,9 +53,9 @@ public class SleepStructureService {
         // 心理健康数据，按 健康(Healthy) -> 焦虑(Anxiety) -> 抑郁(Depression) -> 共病(Both) 的顺序
         String mentalSql = "SELECT mental_health_condition, AVG(sleep_duration_hrs) as avg_duration, " +
                 "AVG(rem_percentage) as avg_rem, AVG(deep_sleep_percentage) as avg_deep, " +
-                "AVG(light_sleep_percentage) as avg_light, AVG(sleep_quality_score) as avg_quality, " +
+                "AVG(sleep_quality_score) as avg_quality, " +
                 "AVG(wake_episodes_per_night) as avg_wake_episodes " +
-                "FROM sleep_structure WHERE age BETWEEN ? AND ? GROUP BY mental_health_condition " +
+                "FROM sub_sleep_structure WHERE age BETWEEN ? AND ? GROUP BY mental_health_condition " +
                 "ORDER BY CASE mental_health_condition " +
                 "WHEN 'Healthy' THEN 1 " +
                 "WHEN 'Anxiety' THEN 2 " +

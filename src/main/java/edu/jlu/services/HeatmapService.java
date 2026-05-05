@@ -1,5 +1,6 @@
 package edu.jlu.services;
 
+import edu.jlu.models.HeatmapResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -12,14 +13,8 @@ public class HeatmapService {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    /**
-     * 数值字段白名单（用于 range 分桶，防 SQL 注入）
-     * key：前端允许传入的 field 名
-     * value：数据库真实列名
-     */
     private static final Map<String, String> NUMERIC_FIELD_WHITELIST = new HashMap<>();
     static {
-        // 只允许数值列（按你的数据集可增删）
         NUMERIC_FIELD_WHITELIST.put("sleep_duration_hrs", "sleep_duration_hrs");
         NUMERIC_FIELD_WHITELIST.put("sleep_quality_score", "sleep_quality_score");
         NUMERIC_FIELD_WHITELIST.put("stress_score", "stress_score");
@@ -32,10 +27,7 @@ public class HeatmapService {
         NUMERIC_FIELD_WHITELIST.put("age", "age");
     }
 
-    /**
-     * 兼容保留：原来的默认热力图（睡眠时长 × 睡眠质量）
-     */
-    public Map<String, Object> getSleepDurationVsQualityHeatmap() {
+    public HeatmapResult getSleepDurationVsQualityHeatmap() {
         String sql =
                 "SELECT " +
                         "  FLOOR(sleep_duration_hrs) AS x_bucket, " +
@@ -46,7 +38,7 @@ public class HeatmapService {
                         "    WHEN sleep_quality_score <= 7 THEN '6-7' " +
                         "    ELSE '8-10' END AS y_label, " +
                         "  COUNT(*) AS value " +
-                        "FROM sleep_health_dataset " +
+                        "FROM sub_heatmap_data " +
                         "WHERE sleep_duration_hrs IS NOT NULL AND sleep_quality_score IS NOT NULL " +
                         "GROUP BY x_bucket, x_label, y_label " +
                         "ORDER BY x_bucket ASC, y_label ASC";
@@ -55,13 +47,7 @@ public class HeatmapService {
         return buildHeatmapDynamicX("睡眠时长 × 睡眠质量（人数）", sql, "x_label", yLabels, "y_label");
     }
 
-    /**
-     * 新增：range 分桶热力图（细化分桶用）
-     *
-     * 分桶区间：左闭右开 [start, end)
-     * 超出范围：直接过滤（2A）
-     */
-    public Map<String, Object> getRangeHeatmap(
+    public HeatmapResult getRangeHeatmap(
             String xField, String yField,
             double xStart, double xEnd, double xStep,
             double yStart, double yEnd, double yStep,
@@ -84,7 +70,7 @@ public class HeatmapService {
                         "  FLOOR((" + xCol + " - ?) / ?) AS x_idx, " +
                         "  FLOOR((" + yCol + " - ?) / ?) AS y_idx, " +
                         "  COUNT(*) AS value " +
-                        "FROM sleep_health_dataset " +
+                        "FROM sub_heatmap_data " +
                         "WHERE " + xCol + " IS NOT NULL AND " + yCol + " IS NOT NULL " +
                         "  AND " + xCol + " >= ? AND " + xCol + " < ? " +
                         "  AND " + yCol + " >= ? AND " + yCol + " < ? " +
@@ -114,17 +100,15 @@ public class HeatmapService {
             data.add(Arrays.asList(xi, yi, vN.intValue()));
         }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("title", (title != null && !title.trim().isEmpty())
+        HeatmapResult result = new HeatmapResult();
+        result.setTitle((title != null && !title.trim().isEmpty())
                 ? title
                 : String.format("%s(range) × %s(range)（人数）", xField, yField));
-        result.put("xLabels", xLabels);
-        result.put("yLabels", yLabels);
-        result.put("data", data);
+        result.setXLabels(xLabels);
+        result.setYLabels(yLabels);
+        result.setData(data);
         return result;
     }
-
-    // ===================== helpers =====================
 
     private void validateRangeParams(String axis, double start, double end, double step) {
         if (Double.isNaN(start) || Double.isNaN(end) || Double.isNaN(step)) {
@@ -138,7 +122,7 @@ public class HeatmapService {
         }
 
         double bins = Math.ceil((end - start) / step);
-        if (bins > 200) { // 保护阈值：避免 step 太小导致 bins 巨大
+        if (bins > 200) {
             throw new IllegalArgumentException(axis + " 分桶数量过大(" + (int) bins + ")，请增大 step 或缩小范围");
         }
     }
@@ -165,16 +149,12 @@ public class HeatmapService {
         if (Math.abs(v - Math.round(v)) < 1e-9) {
             return String.valueOf((long) Math.round(v));
         }
-        // 最多 2 位小数，去掉尾随 0
         String s = String.format(java.util.Locale.US, "%.2f", v);
         s = s.replaceAll("0+$", "").replaceAll("\\.$", "");
         return s;
     }
 
-    /**
-     * 你原来那套：xLabels 动态提取（按 SQL 返回顺序去重），yLabels 固定。
-     */
-    private Map<String, Object> buildHeatmapDynamicX(
+    private HeatmapResult buildHeatmapDynamicX(
             String title,
             String sql,
             String xLabelKey,
@@ -203,11 +183,11 @@ public class HeatmapService {
             data.add(Arrays.asList(xIndex, yIndex, value.intValue()));
         }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("title", title);
-        result.put("xLabels", xLabels);
-        result.put("yLabels", yLabels);
-        result.put("data", data);
+        HeatmapResult result = new HeatmapResult();
+        result.setTitle(title);
+        result.setXLabels(xLabels);
+        result.setYLabels(yLabels);
+        result.setData(data);
         return result;
     }
 }

@@ -25,7 +25,7 @@ const DragState = {
     isDragging: false,
     dragging: null,
     barData: {},
-    pieStates: {}
+    legendHiddenData: {}  // 记录被图例隐藏的数据 { key: { innerName, outerName, value, color } }
 };
 
 const INNER_LABELS = {
@@ -48,6 +48,7 @@ const OUTER_LABELS = {
 let rawOuterData = [];
 let originalInnerData = [];
 let originalOuterData = [];
+let currentLegendSelected = {};  // 当前图例选中状态
 
 let dragPreviewEl = null;
 
@@ -61,19 +62,25 @@ function initDistributionPage() {
     initDragEvents();
 
     $('#innerTabs .tab-btn').on('click', function() {
-        saveCurrentPieState();
         currentInner = $(this).data('type');
         selectedInnerName = null;
         $('#innerTabs .tab-btn').removeClass('active');
         $(this).addClass('active');
+        // 切换内圈时清空 bar 数据
+        DragState.barData = {};
+        DragState.legendHiddenData = {};
+        currentLegendSelected = {};
         loadDistributionData();
     });
 
     $('#outerTabs .tab-btn').on('click', function() {
-        saveCurrentPieState();
         currentOuter = $(this).data('type');
         $('#outerTabs .tab-btn').removeClass('active');
         $(this).addClass('active');
+        // 切换外圈时清空 bar 数据
+        DragState.barData = {};
+        DragState.legendHiddenData = {};
+        currentLegendSelected = {};
         loadDistributionData();
     });
 
@@ -119,20 +126,6 @@ function initDragEvents() {
     distributionChart.getZr().on('mouseup', onChartMouseUp);
 }
 
-function getPieKey() {
-    return currentInner + ' ' + currentOuter;
-}
-
-function saveCurrentPieState() {
-    if (!distributionChart) return;
-    const key = getPieKey();
-
-    DragState.pieStates[key] = {
-        innerData: JSON.parse(JSON.stringify(originalInnerData)),
-        outerData: JSON.parse(JSON.stringify(rawOuterData))
-    };
-}
-
 function loadDistributionData() {
     $.ajax({
         url: '/sleep/api/chart/distribution',
@@ -144,12 +137,8 @@ function loadDistributionData() {
             originalOuterData = JSON.parse(JSON.stringify(data.outer));
             rawOuterData = data.outer;
 
-            const key = getPieKey();
-            if (DragState.pieStates[key]) {
-                applySavedState(data.inner, data.outer);
-            } else {
-                applyBarDataToFreshData(data.inner, data.outer);
-            }
+            // 重置图例选中状态
+            currentLegendSelected = {};
 
             updateDistributionChart(data.inner, data.outer);
         },
@@ -157,42 +146,6 @@ function loadDistributionData() {
             console.log('分布数据加载失败');
         }
     });
-}
-
-function applySavedState(innerData, outerData) {
-    const key = getPieKey();
-    const saved = DragState.pieStates[key];
-
-    if (saved) {
-        for (let i = 0; i < innerData.length; i++) {
-            const match = saved.innerData.find(s => s.name === innerData[i].name);
-            if (match) innerData[i].value = match.value;
-        }
-
-        for (let i = 0; i < outerData.length; i++) {
-            const match = saved.outerData.find(s =>
-                s.outerName === outerData[i].outerName && s.innerName === outerData[i].innerName);
-            if (match) outerData[i].value = match.value;
-        }
-    }
-
-    applyBarDataToFreshData(innerData, outerData);
-}
-
-function applyBarDataToFreshData(innerData, outerData) {
-    for (let i = 0; i < innerData.length; i++) {
-        const barKey = innerData[i].name;
-        if (DragState.barData[barKey]) {
-            innerData[i].value = Math.max(0, innerData[i].value - DragState.barData[barKey].value);
-        }
-    }
-
-    for (let i = 0; i < outerData.length; i++) {
-        const barKey = outerData[i].inner_name + ' ' + outerData[i].outer_name;
-        if (DragState.barData[barKey]) {
-            outerData[i].value = Math.max(0, outerData[i].value - DragState.barData[barKey].value);
-        }
-    }
 }
 
 function updateChartTitle() {
@@ -243,7 +196,7 @@ function updateDistributionChart(innerData, outerData) {
 
     const option = {
         tooltip: { trigger: 'item' },
-        legend: { orient: 'vertical', right: '5%', top: 'center', textStyle: { color: '#64748b' } },
+        legend: { orient: 'vertical', right: '5%', top: 'center', textStyle: { color: '#64748b' }, selectedMode: true },
         series: [
             {
                 name: '内层', type: 'pie', radius: ['0%', '50%'], center: ['40%', '50%'],
@@ -276,6 +229,12 @@ function updateDistributionChart(innerData, outerData) {
                 ]
             });
         }
+    });
+
+    // 图例点击事件监听
+    distributionChart.off('legendselectchanged');
+    distributionChart.on('legendselectchanged', function(params) {
+        handleLegendToggle(params.selected);
     });
 }
 
@@ -401,6 +360,80 @@ function getSectorByAngle(x, y) {
     }
 
     return null;
+}
+
+function handleLegendToggle(selected) {
+    const option = distributionChart.getOption();
+    const innerData = option.series[0].data;
+    const outerData = option.series[1].data;
+
+    // 对比上次状态，找出变化
+    for (let i = 0; i < innerData.length; i++) {
+        const name = innerData[i].name;
+        const wasSelected = currentLegendSelected[name] !== false;
+        const isSelected = selected[name] !== false;
+
+        if (!wasSelected && isSelected) {
+            // 图例被选中显示 - 从 barData 移除
+            const barKey = name;
+            if (DragState.barData[barKey]) {
+                delete DragState.barData[barKey];
+            }
+            delete DragState.legendHiddenData[barKey];
+        } else if (wasSelected && !isSelected) {
+            // 图例被取消隐藏 - 添加到 barData
+            const barKey = name;
+            DragState.barData[barKey] = {
+                innerName: name,
+                outerName: null,
+                value: innerData[i].value,
+                color: innerData[i].itemStyle ? innerData[i].itemStyle.color : INNER_COLORS[i % INNER_COLORS.length]
+            };
+            DragState.legendHiddenData[barKey] = {
+                innerName: name,
+                outerName: null,
+                value: innerData[i].value,
+                color: innerData[i].itemStyle ? innerData[i].itemStyle.color : INNER_COLORS[i % INNER_COLORS.length]
+            };
+        }
+    }
+
+    // 检查外层图例
+    for (let i = 0; i < outerData.length; i++) {
+        const name = outerData[i].name;
+        const fullName = (outerData[i].inner_name || selectedInnerName) + ' ' + name;
+        const wasSelected = currentLegendSelected[fullName] !== false;
+        const isSelected = selected[fullName] !== false;
+
+        if (!wasSelected && isSelected) {
+            // 图例被选中显示 - 从 barData 移除
+            const barKey = fullName;
+            if (DragState.barData[barKey]) {
+                delete DragState.barData[barKey];
+            }
+            delete DragState.legendHiddenData[barKey];
+        } else if (wasSelected && !isSelected) {
+            // 图例被取消隐藏 - 添加到 barData
+            const barKey = fullName;
+            DragState.barData[barKey] = {
+                innerName: outerData[i].inner_name || selectedInnerName,
+                outerName: name,
+                value: outerData[i].value,
+                color: outerData[i].itemStyle ? outerData[i].itemStyle.color : OUTER_COLORS[i % OUTER_COLORS.length]
+            };
+            DragState.legendHiddenData[barKey] = {
+                innerName: outerData[i].inner_name || selectedInnerName,
+                outerName: name,
+                value: outerData[i].value,
+                color: outerData[i].itemStyle ? outerData[i].itemStyle.color : OUTER_COLORS[i % OUTER_COLORS.length]
+            };
+        }
+    }
+
+    // 更新当前状态
+    currentLegendSelected = { ...selected };
+
+    updateDraggedBarChart();
 }
 
 function showDragPreview(x, y, name, value, color) {
@@ -541,6 +574,10 @@ function onBarGlobalMouseUp(params) {
 }
 
 function transferToBar(sector) {
+    // 获取当前图例状态
+    const option = distributionChart.getOption();
+    const legendSelect = option.legend[0].selected;
+
     if (sector.type === 'outer') {
         const barKey = sector.innerName + ' ' + sector.name;
         DragState.barData[barKey] = {
@@ -549,8 +586,20 @@ function transferToBar(sector) {
             value: sector.value,
             color: sector.color
         };
+        DragState.legendHiddenData[barKey] = {
+            innerName: sector.innerName,
+            outerName: sector.name,
+            value: sector.value,
+            color: sector.color
+        };
 
-        recalculateAfterOuterRemove(sector);
+        // 设置图例为隐藏
+        distributionChart.dispatchAction({
+            type: 'legendToggleSelect',
+            name: sector.name
+        });
+        currentLegendSelected[sector.name] = false;
+
     } else if (sector.type === 'inner') {
         const barKey = sector.name;
         DragState.barData[barKey] = {
@@ -559,116 +608,22 @@ function transferToBar(sector) {
             value: sector.value,
             color: sector.color
         };
+        DragState.legendHiddenData[barKey] = {
+            innerName: sector.name,
+            outerName: null,
+            value: sector.value,
+            color: sector.color
+        };
 
-        recalculateAfterInnerRemove(sector.name);
+        // 设置图例为隐藏
+        distributionChart.dispatchAction({
+            type: 'legendToggleSelect',
+            name: sector.name
+        });
+        currentLegendSelected[sector.name] = false;
     }
 
     updateDraggedBarChart();
-    saveCurrentPieState();
-    updateDistributionChartFromState();
-}
-
-function recalculateAfterOuterRemove(removedSector) {
-    const key = getPieKey();
-    let state = DragState.pieStates[key];
-
-    if (!state) {
-        state = { innerData: JSON.parse(JSON.stringify(originalInnerData)), outerData: JSON.parse(JSON.stringify(rawOuterData)) };
-        DragState.pieStates[key] = state;
-    }
-
-    // 标记该外圈扇形被移除
-    if (!state.removedOuterSectors) {
-        state.removedOuterSectors = [];
-    }
-    state.removedOuterSectors.push({
-        inner_name: removedSector.innerName,
-        name: removedSector.name
-    });
-}
-
-function recalculateAfterInnerRemove(innerName) {
-    const key = getPieKey();
-    let state = DragState.pieStates[key];
-
-    if (!state) {
-        state = { innerData: JSON.parse(JSON.stringify(originalInnerData)), outerData: JSON.parse(JSON.stringify(rawOuterData)) };
-        DragState.pieStates[key] = state;
-    }
-
-    // 标记该内圈扇形被移除
-    if (!state.removedInnerSectors) {
-        state.removedInnerSectors = [];
-    }
-    state.removedInnerSectors.push(innerName);
-
-    // 标记相关的外圈扇形也被移除
-    if (!state.removedOuterSectors) {
-        state.removedOuterSectors = [];
-    }
-    const relatedOuter = rawOuterData.filter(o => o.inner_name === innerName);
-    relatedOuter.forEach(o => {
-        state.removedOuterSectors.push({
-            inner_name: innerName,
-            name: o.outer_name
-        });
-    });
-}
-
-function updateDistributionChartFromState() {
-    const key = getPieKey();
-    const state = DragState.pieStates[key];
-
-    if (!state) return;
-
-    // 从原始数据开始
-    const innerData = JSON.parse(JSON.stringify(originalInnerData));
-    const outerData = JSON.parse(JSON.stringify(rawOuterData));
-
-    // 过滤掉被移除的内圈扇形
-    const filteredInner = innerData.filter(item => {
-        return !state.removedInnerSectors || !state.removedInnerSectors.includes(item.name);
-    });
-
-    // 过滤掉被移除的外圈扇形
-    const filteredOuter = outerData.filter(item => {
-        if (!state.removedOuterSectors) return true;
-        return !state.removedOuterSectors.some(r =>
-            r.inner_name === item.inner_name && r.name === item.outer_name
-        );
-    });
-
-    // 如果有barData，进一步扣除
-    for (let i = 0; i < filteredInner.length; i++) {
-        const barKey = filteredInner[i].name;
-        if (DragState.barData[barKey]) {
-            filteredInner[i].value = Math.max(0, filteredInner[i].value - DragState.barData[barKey].value);
-        }
-    }
-
-    for (let i = 0; i < filteredOuter.length; i++) {
-        const barKey = filteredOuter[i].inner_name + ' ' + filteredOuter[i].outer_name;
-        if (DragState.barData[barKey]) {
-            filteredOuter[i].value = Math.max(0, filteredOuter[i].value - DragState.barData[barKey].value);
-        }
-    }
-
-    // 计算剩余内圈的总值
-    const totalInnerValue = filteredInner.reduce((s, i) => s + i.value, 0);
-    // 如果内圈全被拖走，则不显示内圈（设置为空数组）
-    const finalInner = totalInnerValue > 0 ? filteredInner : [];
-
-    // 计算剩余外圈的总值
-    const totalOuterValue = filteredOuter.reduce((s, i) => s + i.value, 0);
-    // 如果外圈全被拖走，则不显示外圈（设置为空数组）
-    const finalOuter = totalOuterValue > 0 ? filteredOuter : [];
-
-    selectedInnerName = finalInner.length > 0 ? finalInner[0].name : null;
-
-    updateDistributionChart(
-        finalInner.map(item => ({ name: item.name, value: item.value })),
-        finalOuter.map(item => ({ inner_name: item.inner_name, outer_name: item.outer_name, value: item.value }))
-    );
 }
 
 function updateDraggedBarChart() {
@@ -734,41 +689,23 @@ function restoreFromBar(barInfo, targetSector) {
 
     if (!barEntry) return;
 
-    const key = getPieKey();
-    let state = DragState.pieStates[key];
-
-    if (!state) {
-        state = {
-            innerData: JSON.parse(JSON.stringify(originalInnerData)),
-            outerData: JSON.parse(JSON.stringify(rawOuterData)),
-            removedInnerSectors: [],
-            removedOuterSectors: []
-        };
-        DragState.pieStates[key] = state;
-    }
-
-    if (!state.removedInnerSectors) state.removedInnerSectors = [];
-    if (!state.removedOuterSectors) state.removedOuterSectors = [];
-
-    if (barEntry.outerName) {
-        // 恢复外圈：从removedOuterSectors中移除
-        state.removedOuterSectors = state.removedOuterSectors.filter(r =>
-            !(r.inner_name === barEntry.innerName && r.name === barEntry.outerName)
-        );
-
-    } else {
-        // 恢复内圈：从removedInnerSectors中移除
-        state.removedInnerSectors = state.removedInnerSectors.filter(n => n !== barEntry.innerName);
-
-        // 同时恢复相关的外圈
-        state.removedOuterSectors = state.removedOuterSectors.filter(r =>
-            r.inner_name !== barEntry.innerName
-        );
-    }
-
     delete DragState.barData[barKey];
+    delete DragState.legendHiddenData[barKey];
+
+    // 恢复图例为选中状态
+    if (barEntry.outerName) {
+        distributionChart.dispatchAction({
+            type: 'legendToggleSelect',
+            name: barEntry.outerName
+        });
+        currentLegendSelected[barEntry.outerName] = true;
+    } else {
+        distributionChart.dispatchAction({
+            type: 'legendToggleSelect',
+            name: barEntry.innerName
+        });
+        currentLegendSelected[barEntry.innerName] = true;
+    }
 
     updateDraggedBarChart();
-    saveCurrentPieState();
-    updateDistributionChartFromState();
 }

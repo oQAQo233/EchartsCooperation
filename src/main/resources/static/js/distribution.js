@@ -168,7 +168,7 @@ function applySavedState(innerData, outerData) {
 
         for (let i = 0; i < outerData.length; i++) {
             const match = saved.outerData.find(s =>
-                s.name === outerData[i].outer_name && s.inner_name === outerData[i].inner_name);
+                s.outerName === outerData[i].outerName && s.innerName === outerData[i].innerName);
             if (match) outerData[i].value = match.value;
         }
     }

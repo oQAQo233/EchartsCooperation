@@ -1,0 +1,161 @@
+/* ========== 主页样式 ========== */
+:root {
+    --primary: #6366f1;
+    --secondary: #8b5cf6;
+    --white: #ffffff;
+    --glass-bg: rgba(99, 102, 241, 0.08);
+    --glass-border: rgba(99, 102, 241, 0.15);
+    --text-dark: #1e293b;
+}
+
+/* 内容覆盖层 */
+.content-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 3rem 2rem;
+    overflow-y: auto;
+}
+
+/* 标题区 */
+.title-section {
+    text-align: center;
+    margin-bottom: 3rem;
+    padding: 2rem 3rem;
+    background: var(--white);
+    border: 1px solid var(--glass-border);
+    border-radius: 20px;
+    box-shadow: 0 4px 24px rgba(99, 102, 241, 0.1);
+}
+
+.main-title {
+    font-size: 3rem;
+    font-weight: 800;
+    color: var(--text-dark);
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+}
+
+.main-title i {
+    font-size: 2.5rem;
+    color: var(--primary);
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.1); }
+}
+
+.subtitle {
+    font-size: 1.1rem;
+    color: var(--gray, #64748b);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+/* 导航网格 */
+.nav-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    max-width: 1200px;
+    width: 100%;
+    margin-bottom: auto;
+}
+
+/* 导航卡片 */
+.nav-card {
+    background: var(--white);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    padding: 2rem 1.5rem;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    box-shadow: 0 2px 12px rgba(99, 102, 241, 0.08);
+}
+
+.nav-card:hover {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+    border-color: var(--primary);
+    transform: translateY(-8px) scale(1.02);
+    box-shadow: 0 20px 40px rgba(99, 102, 241, 0.15);
+}
+
+.nav-card h3 {
+    color: var(--text-dark);
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 1rem 0 0.5rem 0;
+}
+
+.nav-card p {
+    color: #64748b;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.nav-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+    margin-bottom: 0.5rem;
+}
+
+/* 页脚 */
+.footer {
+    margin-top: 3rem;
+    padding: 1rem 2rem;
+    background: var(--white);
+    border-radius: 30px;
+    border: 1px solid var(--glass-border);
+}
+
+.footer span {
+    color: #64748b;
+    font-size: 0.85rem;
+}
+
+/* 响应式 */
+@media (max-width: 1200px) {
+    .nav-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    .main-title { font-size: 2.5rem; }
+}
+
+@media (max-width: 900px) {
+    .nav-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .main-title { font-size: 2rem; }
+    .main-title i { font-size: 1.75rem; }
+}
+
+@media (max-width: 600px) {
+    .nav-grid {
+        grid-template-columns: 1fr;
+    }
+    .content-overlay {
+        padding: 2rem 1rem;
+    }
+    .title-section {
+        padding: 1.5rem;
+    }
+    .main-title { font-size: 1.75rem; }
+}

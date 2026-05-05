@@ -12,6 +12,7 @@
 </head>
 <body>
 
+    <!-- 侧边栏 -->
     <div class="sidebar">
         <ul class="sidebar-menu">
             <li>
@@ -33,6 +34,12 @@
                 </a>
             </li>
             <li>
+                <a href="/sleep/sleep-structure">
+                    <i class="bi bi-activity icon"></i>
+                    睡眠结构分析
+                </a>
+            </li>
+            <li>
                 <a href="/sleep/heatmap">
                     <i class="bi bi-grid-3x3-gap icon"></i>
                     热力图分析
@@ -45,22 +52,22 @@
                 </a>
             </li>
             <li>
-                <a href="/sleep/xgboost">
-                    <i class="bi bi-cpu icon"></i>
-                    模型预测
+                <a href="#" class="active">
+                    <i class="bi bi-bar-chart-steps icon"></i>
+                    维度对比分析
                 </a>
             </li>
             <li>
-                <a href="/sleep/comparison" class="active">
-                    <i class="bi bi-bar-chart-steps icon"></i>
-                    维度对比分析
+                <a href="/sleep/xgboost">
+                    <i class="bi bi-cpu icon"></i>
+                    模型预测
                 </a>
             </li>
         </ul>
     </div>
 
     <nav class="navbar">
-        <a class="navbar-brand" href="#">
+        <a class="navbar-brand" href="/">
             <i class="bi bi-moon-stars"></i>
             睡眠健康分析平台
         </a>

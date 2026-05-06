@@ -62,6 +62,11 @@ function initDistributionPage() {
     initDraggedBarChart();
     initDragEvents();
 
+    // 绑定清除按钮
+    $(document).on('click', '#clearBarBtn', function() {
+        clearDraggedBars();
+    });
+
     $('#innerTabs .tab-btn').on('click', function() {
         currentInner = $(this).data('type');
         selectedInnerName = null;
@@ -736,4 +741,26 @@ function restoreFromBar(barInfo, targetSector) {
     }
 
     updateDraggedBarChart();
+}
+
+function clearDraggedBars() {
+    // 恢复所有被移除的图例为选中状态（仅影响当前图表可见的图例）
+    const keys = Object.keys(DragState.barData);
+    keys.forEach(k => {
+        // 使用 legendSelect 恢复图例（k 可能是内圈名或复合键）
+        try { distributionChart.dispatchAction({ type: 'legendSelect', name: k }); } catch (e) {}
+        currentLegendSelected[k] = true;
+    });
+
+    // 清空状态
+    DragState.barData = {};
+    DragState.barOrder = [];
+    DragState.legendHiddenData = {};
+
+    updateDraggedBarChart();
+
+    // 重新渲染饼图以同步 legend 显示
+    try {
+        updateDistributionChart(originalInnerData, rawOuterData);
+    } catch (e) {}
 }

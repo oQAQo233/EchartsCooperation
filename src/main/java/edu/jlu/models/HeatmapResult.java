@@ -1,11 +1,15 @@
 package edu.jlu.models;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 public class HeatmapResult {
     private String title;
+    @JsonProperty("xLabels")
     private List<String> xLabels;
+    @JsonProperty("yLabels")
     private List<String> yLabels;
+    @JsonProperty("data")
     private List<List<Object>> data;
 
     public HeatmapResult() {}

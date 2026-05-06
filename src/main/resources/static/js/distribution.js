@@ -67,11 +67,8 @@ function initDistributionPage() {
         selectedInnerName = null;
         $('#innerTabs .tab-btn').removeClass('active');
         $(this).addClass('active');
-        // 切换内圈时清空 bar 数据
-        DragState.barData = {};
-        DragState.barOrder = [];
-        DragState.legendHiddenData = {};
-        currentLegendSelected = {};
+        // 切换内圈时保留已拖拽的数据（不同内圈的外圈图例显示相互独立）
+        // 仅清理与内/外切换无关的 UI 选择状态，这里交由 updateDistributionChart 同步展示
         loadDistributionData();
     });
 
@@ -173,8 +170,10 @@ function buildOuterItems(outerData, targetInnerName) {
         .map(function(item) {
             var outerName = String(item.outer_name);
             var colorIdx = uniqueOuterNames.indexOf(outerName);
+            var compositeName = String(item.inner_name) + ' ' + outerName; // 复合键，确保不同内圈的外圈图例互不冲突
             return {
-                name: outerName,
+                name: compositeName,
+                displayName: outerName,
                 value: item.value,
                 inner_name: item.inner_name,
                 itemStyle: { color: OUTER_COLORS[colorIdx % OUTER_COLORS.length] }
@@ -211,7 +210,7 @@ function updateDistributionChart(innerData, outerData) {
             {
                 name: '外层', type: 'pie', radius: ['65%', '90%'], center: ['40%', '50%'],
                 selectedMode: 'single',
-                label: { show: true, position: 'outside', formatter: '{b}', color: '#64748b' },
+                label: { show: true, position: 'outside', formatter: function(params){ return params.data && params.data.displayName ? params.data.displayName : params.name; }, color: '#64748b' },
                 labelLine: { length: 15 },
                 data: outerItems
             }
@@ -220,17 +219,29 @@ function updateDistributionChart(innerData, outerData) {
 
     distributionChart.setOption(option, true);
 
+    // 根据 DragState.barData（包含内圈或 inner+' '+outer 复合键）来决定哪些图例应为选中
+    const legendSelected = {};
+    innerItems.forEach(d => {
+        // 如果内圈被拖拽到柱状图中（键为内圈名），则图例应当为隐藏(false)
+        legendSelected[d.name] = !(DragState.barData.hasOwnProperty(d.name));
+    });
+    outerItems.forEach(d => {
+        const compositeKey = (d.inner_name || selectedInnerName) + ' ' + d.name;
+        // 如果对应的复合键存在于 barData 中，则该外圈图例对于当前内圈应为隐藏
+        legendSelected[d.name] = !(DragState.barData.hasOwnProperty(compositeKey));
+    });
+
+    // 将选中状态注入到图表配置中（确保渲染时 legend 状态与 barData 一致）
+    option.legend = option.legend || {};
+    option.legend.selected = legendSelected;
+    currentLegendSelected = { ...legendSelected };
+
     distributionChart.off('click');
     distributionChart.on('click', function(params) {
         if (params.seriesName === '内层') {
             selectedInnerName = params.name;
-            var newOuterItems = buildOuterItems(rawOuterData, selectedInnerName);
-            distributionChart.setOption({
-                series: [
-                    { data: distributionChart.getOption().series[0].data },
-                    { data: newOuterItems }
-                ]
-            });
+            // 重新渲染整个图，确保 legend 状态基于当前 inner 的 barData 进行计算
+            updateDistributionChart(innerData, rawOuterData);
         }
     });
 
@@ -254,12 +265,12 @@ function getSectorInfo(offsetX, offsetY, params) {
             const outerData = option.series[1].data;
             const targetData = seriesIndex === 0 ? innerData : outerData;
 
-            // 创建可见扇形索引映射数组
+            // 创建可见扇形索引映射数组（使用数据名作为图例键）
             const lst = [];
             for (let i = 0; i < targetData.length; i++) {
                 const d = targetData[i];
                 if (d) {
-                    const legendName = seriesIndex === 0 ? d.name : (d.inner_name || selectedInnerName) + ' ' + d.name;
+                    const legendName = d.name; // 统一使用 data.name 作为图例键
                     if (currentLegendSelected[legendName] !== false) {
                         lst.push(i);
                     }
@@ -383,24 +394,13 @@ function handleLegendToggle(selected) {
     const option = distributionChart.getOption();
     const innerData = option.series[0].data;
     const outerData = option.series[1].data;
-
-    // 获取所有图例名称
-    const allLegendNames = new Set();
-    innerData.forEach(d => allLegendNames.add(d.name));
-    outerData.forEach(d => {
-        const fullName = (d.inner_name || selectedInnerName) + ' ' + d.name;
-        allLegendNames.add(fullName);
-    });
-
-    // 找出真正变化的图例（之前存在记录的）
+    // 找出变化的图例（比较 selected 与 currentLegendSelected）
     const changedLegends = [];
-    for (const name of allLegendNames) {
-        if (name in currentLegendSelected) {
-            const wasSelected = currentLegendSelected[name] !== false;
-            const isSelected = selected[name] !== false;
-            if (wasSelected !== isSelected) {
-                changedLegends.push({ name, wasSelected, isSelected });
-            }
+    for (const name in selected) {
+        const wasSelected = currentLegendSelected[name] !== false;
+        const isSelected = selected[name] !== false;
+        if (wasSelected !== isSelected) {
+            changedLegends.push({ name, wasSelected, isSelected });
         }
     }
 
@@ -409,43 +409,45 @@ function handleLegendToggle(selected) {
         const { name, wasSelected, isSelected } = change;
 
         if (!wasSelected && isSelected) {
-            // 图例被选中显示 - 从 barData 移除
-            if (DragState.barData[name]) {
-                delete DragState.barData[name];
-                DragState.barOrder = DragState.barOrder.filter(k => k !== name);
-            }
-            delete DragState.legendHiddenData[name];
+            // 图例被选中显示 - 仅移除当前内圈相关的条目：纯内圈名或当前内圈的复合外圈键
+            const composite = (selectedInnerName || '') + ' ' + name;
+            const keysToRemove = Object.keys(DragState.barData).filter(k => k === name || k === composite);
+            keysToRemove.forEach(k => {
+                delete DragState.barData[k];
+                DragState.barOrder = DragState.barOrder.filter(x => x !== k);
+                delete DragState.legendHiddenData[k];
+            });
         } else if (wasSelected && !isSelected) {
             // 图例被取消隐藏 - 添加到 barData
             // 查找对应的原始数据
             const innerItem = innerData.find(d => d.name === name);
             if (innerItem) {
-                DragState.barData[name] = {
+                const barKey = name; // 内圈使用名称本身作为键
+                DragState.barData[barKey] = {
                     innerName: name,
                     outerName: null,
                     value: innerItem.value,
                     color: innerItem.itemStyle ? innerItem.itemStyle.color : INNER_COLORS[innerData.indexOf(innerItem) % INNER_COLORS.length]
                 };
-                DragState.legendHiddenData[name] = { ...DragState.barData[name] };
-                if (!DragState.barOrder.includes(name)) {
-                    DragState.barOrder.push(name);
+                DragState.legendHiddenData[barKey] = { ...DragState.barData[barKey] };
+                if (!DragState.barOrder.includes(barKey)) {
+                    DragState.barOrder.push(barKey);
                 }
             } else {
-                // 外圈数据
-                const outerItem = outerData.find(d => {
-                    const fullName = (d.inner_name || selectedInnerName) + ' ' + d.name;
-                    return fullName === name;
-                });
+                // 外圈数据（使用 data.name 匹配），但在内部使用复合键 inner + ' ' + outer 避免与纯 outer 名称冲突
+                const outerItem = outerData.find(d => d.name === name);
                 if (outerItem) {
-                    DragState.barData[name] = {
+                    const barKey = outerItem.name; // outerItem.name 已为复合键
+                    DragState.barData[barKey] = {
                         innerName: outerItem.inner_name || selectedInnerName,
-                        outerName: outerItem.name,
+                        outerName: barKey,
+                        outerDisplayName: outerItem.displayName || (outerItem.name && outerItem.name.split(' ').slice(1).join(' ')),
                         value: outerItem.value,
                         color: outerItem.itemStyle ? outerItem.itemStyle.color : OUTER_COLORS[outerData.indexOf(outerItem) % OUTER_COLORS.length]
                     };
-                    DragState.legendHiddenData[name] = { ...DragState.barData[name] };
-                    if (!DragState.barOrder.includes(name)) {
-                        DragState.barOrder.push(name);
+                    DragState.legendHiddenData[barKey] = { ...DragState.barData[barKey] };
+                    if (!DragState.barOrder.includes(barKey)) {
+                        DragState.barOrder.push(barKey);
                     }
                 }
             }
@@ -597,19 +599,16 @@ function onBarGlobalMouseUp(params) {
 
 function transferToBar(sector) {
     if (sector.type === 'outer') {
-        const barKey = sector.innerName + ' ' + sector.name;
+        const barKey = sector.name; // sector.name 已为复合键 inner + ' ' + outer
+        const outerDisplay = (sector.name && sector.name.indexOf(' ') >= 0) ? sector.name.split(' ').slice(1).join(' ') : sector.name;
         DragState.barData[barKey] = {
             innerName: sector.innerName,
-            outerName: sector.name,
+            outerName: barKey,
+            outerDisplayName: outerDisplay,
             value: sector.value,
             color: sector.color
         };
-        DragState.legendHiddenData[barKey] = {
-            innerName: sector.innerName,
-            outerName: sector.name,
-            value: sector.value,
-            color: sector.color
-        };
+        DragState.legendHiddenData[barKey] = { ...DragState.barData[barKey] };
         // 记录顺序
         if (!DragState.barOrder.includes(barKey)) {
             DragState.barOrder.push(barKey);
@@ -618,9 +617,9 @@ function transferToBar(sector) {
         // 设置图例为隐藏
         distributionChart.dispatchAction({
             type: 'legendToggleSelect',
-            name: sector.name
+            name: barKey
         });
-        currentLegendSelected[sector.name] = false;
+        currentLegendSelected[barKey] = false;
 
     } else if (sector.type === 'inner') {
         const barKey = sector.name;
@@ -676,7 +675,8 @@ function updateDraggedBarChart() {
                 const barEntry = DragState.barData[item.name];
                 let tip = item.name + ': ' + item.value + '人';
                 if (barEntry.outerName) {
-                    tip += '<br/><span style="color:#999;font-size:11px;">来源: ' + barEntry.innerName + ' ' + barEntry.outerName + '</span>';
+                    const outerDisplay = barEntry.outerDisplayName || (barEntry.outerName && barEntry.outerName.split(' ').slice(1).join(' '));
+                    tip += '<br/><span style="color:#999;font-size:11px;">来源: ' + barEntry.innerName + ' ' + outerDisplay + '</span>';
                 } else {
                     tip += '<br/><span style="color:#999;font-size:11px;">来源: ' + barEntry.innerName + '</span>';
                 }

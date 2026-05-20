@@ -246,10 +246,28 @@
                 success: function(res) {
                     if (res.success) {
                         var display = '预测结果: ';
+                        // 优先使用后端返回的文本标签
                         if (res.predictionLabel) {
                             display += '<span class="text-success">' + res.predictionLabel + '</span>';
                         } else {
-                            display += '<span class="text-success">' + res.prediction + '</span>';
+                            // 后端没有给标签时，针对“睡眠障碍风险评估”做特殊映射
+                            var predValue = parseFloat(res.prediction);
+                            if (modelId === 'sleep_disorder_risk') {
+                                var label;
+                                if (predValue <= 0.25) {
+                                    label = 'Healthy';
+                                } else if (predValue <= 0.5) {
+                                    label = 'Mild';
+                                } else if (predValue <= 0.75) {
+                                    label = 'Moderate';
+                                } else {
+                                    label = 'Severe';
+                                }
+                                display += '<span class="text-success">' + label + '</span>';
+                            } else {
+                                // 其他回归模型仍显示原始数值
+                                display += '<span class="text-success">' + res.prediction + '</span>';
+                            }
                         }
                         $('#resultArea').html(display);
                     } else {

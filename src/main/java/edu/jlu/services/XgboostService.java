@@ -20,7 +20,7 @@ public class XgboostService {
     // 外层 Map 的 key 是目标变量名（字符串），value 是它的元信息（名称、类型等）。
     // 使用 LinkedHashMap 保持插入顺序，展示时有固定序。
 
-    static { // 定义模型（目标变量）及其输出配置
+    static {
         Map<String, Object> cfgCog = new HashMap<>();
         cfgCog.put("name", "认知表现评分预测");
         cfgCog.put("type", "regression");
@@ -29,14 +29,7 @@ public class XgboostService {
         Map<String, Object> cfgRisk = new HashMap<>();
         cfgRisk.put("name", "睡眠障碍风险评估");
         cfgRisk.put("type", "regression");
-        cfgRisk.put("labels", Arrays.asList("Healthy", "Mild", "Moderate", "Severe"));
         OUTPUT_CONFIG.put("sleep_disorder_risk", cfgRisk);
-
-        Map<String, Object> cfgMental = new HashMap<>();
-        cfgMental.put("name", "心理健康状况预测");
-        cfgMental.put("type", "classification");
-        cfgMental.put("labels", Arrays.asList("Healthy", "Anxiety", "Depression", "Both"));
-        OUTPUT_CONFIG.put("mental_health_condition", cfgMental);
 
         Map<String, Object> cfgDur = new HashMap<>();
         cfgDur.put("name", "总睡眠时长预测");
@@ -48,11 +41,27 @@ public class XgboostService {
         cfgLat.put("type", "regression");
         OUTPUT_CONFIG.put("sleep_latency_mins", cfgLat);
 
+        Map<String, Object> cfgDeep = new HashMap<>();
+        cfgDeep.put("name", "深度睡眠占比预测");
+        cfgDeep.put("type", "regression");
+        OUTPUT_CONFIG.put("deep_sleep_percentage", cfgDeep);
+
+        Map<String, Object> cfgRem = new HashMap<>();
+        cfgRem.put("name", "REM占比预测");
+        cfgRem.put("type", "regression");
+        OUTPUT_CONFIG.put("rem_percentage", cfgRem);
+
         Map<String, Object> cfgRested = new HashMap<>();
         cfgRested.put("name", "是否休息充分预测");
         cfgRested.put("type", "classification");
         cfgRested.put("labels", Arrays.asList("未恢复", "休息好了"));
         OUTPUT_CONFIG.put("felt_rested", cfgRested);
+
+        Map<String, Object> cfgMental = new HashMap<>();
+        cfgMental.put("name", "心理健康状况预测");
+        cfgMental.put("type", "classification");
+        cfgMental.put("labels", Arrays.asList("Healthy", "Anxiety", "Depression", "Both"));
+        OUTPUT_CONFIG.put("mental_health_condition", cfgMental);
 
         Map<String, Object> cfgOcc = new HashMap<>();
         cfgOcc.put("name", "职业预测");
@@ -61,24 +70,52 @@ public class XgboostService {
     }
 
     private static final Map<String, List<String>> MASK_FEATURE_LIST = new LinkedHashMap<>();
-    // 每个模型需要屏蔽（mask）的特征列表。当选择一个模型进行预测时，这些特征在输入表单中不应出现
 
-    static { // 配置 Mask 特征
+    static {
         MASK_FEATURE_LIST.put("cognitive_performance_score",
-                Arrays.asList("sleep_disorder_risk", "felt_rested", "sleep_quality_score"));
+                Arrays.asList("room_temperature_celsius", "occupation", "country", "season", "day_type", "shift_work",
+                        "caffeine_mg_before_bed", "alcohol_units_before_bed", "screen_time_before_bed_mins",
+                        "steps_that_day", "nap_duration_mins", "work_hours_that_day", "exercise_day", "sleep_aid_used",
+                        "sleep_disorder_risk"));
+
         MASK_FEATURE_LIST.put("sleep_disorder_risk",
-                Arrays.asList("cognitive_performance_score", "felt_rested", "sleep_quality_score"));
-        MASK_FEATURE_LIST.put("mental_health_condition",
-                Arrays.asList("cognitive_performance_score", "sleep_disorder_risk"));
+                Arrays.asList("room_temperature_celsius", "occupation", "country", "season", "day_type", "shift_work",
+                        "caffeine_mg_before_bed", "alcohol_units_before_bed", "screen_time_before_bed_mins",
+                        "steps_that_day", "nap_duration_mins", "work_hours_that_day", "exercise_day", "sleep_aid_used",
+                        "cognitive_performance_score"));
+
         MASK_FEATURE_LIST.put("sleep_duration_hrs",
-                Arrays.asList("cognitive_performance_score", "sleep_disorder_risk", "rem_percentage", "deep_sleep_percentage", "sleep_latency_mins"));
+                Arrays.asList("sleep_quality_score", "rem_percentage", "deep_sleep_percentage",
+                        "sleep_latency_mins", "wake_episodes_per_night", "weekend_sleep_diff_hrs", "felt_rested",
+                        "cognitive_performance_score", "sleep_disorder_risk"));
+
         MASK_FEATURE_LIST.put("sleep_latency_mins",
-                Arrays.asList("cognitive_performance_score", "sleep_disorder_risk", "rem_percentage", "deep_sleep_percentage", "sleep_duration_hrs"));
+                Arrays.asList("sleep_duration_hrs", "sleep_quality_score", "rem_percentage", "deep_sleep_percentage",
+                        "wake_episodes_per_night", "weekend_sleep_diff_hrs", "felt_rested",
+                        "cognitive_performance_score", "sleep_disorder_risk"));
+
+        MASK_FEATURE_LIST.put("deep_sleep_percentage",
+                Arrays.asList("sleep_duration_hrs", "sleep_quality_score", "rem_percentage",
+                        "sleep_latency_mins", "wake_episodes_per_night", "weekend_sleep_diff_hrs", "felt_rested",
+                        "cognitive_performance_score", "sleep_disorder_risk"));
+
+        MASK_FEATURE_LIST.put("rem_percentage",
+                Arrays.asList("sleep_duration_hrs", "sleep_quality_score", "deep_sleep_percentage",
+                        "sleep_latency_mins", "wake_episodes_per_night", "weekend_sleep_diff_hrs", "felt_rested",
+                        "cognitive_performance_score", "sleep_disorder_risk"));
+
         MASK_FEATURE_LIST.put("felt_rested",
-                Arrays.asList("cognitive_performance_score", "sleep_disorder_risk"));
+                Arrays.asList("sleep_duration_hrs", "sleep_quality_score", "rem_percentage", "deep_sleep_percentage",
+                        "sleep_latency_mins", "wake_episodes_per_night", "weekend_sleep_diff_hrs",
+                        "cognitive_performance_score", "sleep_disorder_risk"));
+
+        MASK_FEATURE_LIST.put("mental_health_condition",
+                Arrays.asList("cognitive_performance_score", "sleep_disorder_risk", "felt_rested"));
+
         MASK_FEATURE_LIST.put("occupation",
-                Arrays.asList());
+                Arrays.asList("cognitive_performance_score", "sleep_disorder_risk", "felt_rested"));
     }
+
 
     private static final List<Map<String, Object>> ALL_FEATURES;
     // 存储全部特征元数据的列表，每个特征用一个 Map 表示（key, name, type, options 等）

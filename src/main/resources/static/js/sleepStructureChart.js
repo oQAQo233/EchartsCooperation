@@ -311,7 +311,7 @@ function renderChart(data) {
         yAxis: [
             {
                 type: 'value',
-                name: '平均总睡眠时长',
+                name: '(平均)总睡眠时长',
                 nameTextStyle: { color: COLORS.text, fontSize: 12 },
                 min: 0,
                 max: Math.ceil(maxDuration + 1),
@@ -321,7 +321,7 @@ function renderChart(data) {
             },
             {
                 type: 'value',
-                name: '睡眠质量评分/夜间醒来次数',
+                name: '(平均)睡眠质量评分/(平均)夜间醒来次数',
                 nameTextStyle: { color: COLORS.text, fontSize: 12 },
                 min: 0,
                 max: 10,

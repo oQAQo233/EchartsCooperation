@@ -321,7 +321,7 @@ function renderChart(data) {
             },
             {
                 type: 'value',
-                name: '平均睡眠质量评分',
+                name: '睡眠质量评分/夜间醒来次数',
                 nameTextStyle: { color: COLORS.text, fontSize: 12 },
                 min: 0,
                 max: 10,
